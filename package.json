@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "figma-developer-mcp": "dist/cli.js"
+    "figma-developer-mcp": "dist/cli.js",
+    "figma": "dist/src/figma-cli.js"
   },
   "files": [
     "dist",
