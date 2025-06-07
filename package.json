@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "bin": {
     "figma-developer-mcp": "dist/cli.js",
-    "figma": "dist/src/figma-cli.js"
+    "figma": "dist/figma-cli.js"
   },
   "files": [
     "dist",

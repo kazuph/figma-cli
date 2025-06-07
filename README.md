@@ -6,7 +6,7 @@
 </a>
 
 <div align="center">
-  <h1>Framelink Figma MCP Server</h1>
+  <h1>Figma CLI & MCP Server</h1>
   <p>
     🌐 Available in:
     <a href="README.ko.md">한국어 (Korean)</a> |
@@ -14,6 +14,38 @@
     <a href="README.zh.md">中文 (Chinese)</a>
   </p>
   <h3>Give your coding agent access to your Figma data.<br/>Implement designs in any framework in one-shot.</h3>
+</div>
+
+## Quick Installation
+
+### Global CLI Installation
+```bash
+# Install globally from this repository
+npm install -g https://github.com/kazuph/figma-cli.git
+
+# Or clone and install locally
+git clone https://github.com/kazuph/figma-cli.git
+cd figma-cli
+npm install
+npm run build
+npm install -g .
+```
+
+### Usage
+```bash
+# Get Figma file data
+figma get-data <fileKey> [nodeId]
+
+# Download images
+figma download-images <fileKey> <localPath> --nodes '[{"nodeId":"xxx","fileName":"icon.svg"}]'
+
+# Use as MCP server (original functionality)
+figma-developer-mcp --figma-api-key=YOUR_KEY --stdio
+```
+
+**Note**: You need a Figma API key. Get one from [Figma Developer Settings](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens).
+
+<div align="center">
   <a href="https://npmcharts.com/compare/figma-developer-mcp?interval=30">
     <img alt="weekly downloads" src="https://img.shields.io/npm/dm/figma-developer-mcp.svg">
   </a>
