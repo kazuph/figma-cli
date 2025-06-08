@@ -6,7 +6,9 @@
   "main": "dist/index.js",
   "bin": {
     "figma-developer-mcp": "dist/cli.js",
-    "figma": "dist/figma-cli.js"
+    "figma": "dist/figma-cli.js",
+    "fgm": "dist/cli.js",
+    "figma-cli": "dist/cli.js"
   },
   "files": [
     "dist",
@@ -60,6 +62,8 @@
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "fs-extra": "^11.3.0",
+    "inquirer": "^12.6.3",
     "js-yaml": "^4.1.0",
     "remeda": "^2.20.1",
     "yargs": "^17.7.2",
@@ -69,6 +73,8 @@
     "@changesets/changelog-github": "^0.5.1",
     "@changesets/cli": "^2.29.2",
     "@types/express": "^5.0.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.8",
     "@types/jest": "^29.5.14",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.17.0",

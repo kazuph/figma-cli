@@ -2,6 +2,7 @@ import { config } from "dotenv";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import type { FigmaAuthOptions } from "./services/figma.js";
+import { loadCredentials } from "./utils/credentials.js";
 
 // Load environment variables from .env file
 config();
@@ -11,8 +12,8 @@ interface ServerConfig {
   port: number;
   outputFormat: "yaml" | "json";
   configSources: {
-    figmaApiKey: "cli" | "env";
-    figmaOAuthToken: "cli" | "env" | "none";
+    figmaApiKey: "cli" | "env" | "credentials";
+    figmaOAuthToken: "cli" | "env" | "credentials" | "none";
     port: "cli" | "env" | "default";
     outputFormat: "cli" | "env" | "default";
   };
@@ -30,7 +31,7 @@ interface CliArgs {
   json?: boolean;
 }
 
-export function getServerConfig(isStdioMode: boolean): ServerConfig {
+export async function getServerConfig(isStdioMode: boolean): Promise<ServerConfig> {
   // Parse command line arguments
   const argv = yargs(hideBin(process.argv))
     .options({
@@ -66,23 +67,29 @@ export function getServerConfig(isStdioMode: boolean): ServerConfig {
     port: 3333,
     outputFormat: "yaml",
     configSources: {
-      figmaApiKey: "env",
+      figmaApiKey: "credentials",
       figmaOAuthToken: "none",
       port: "default",
       outputFormat: "default",
     },
   };
 
-  // Handle FIGMA_API_KEY
+  // Load stored credentials
+  const credentials = await loadCredentials();
+
+  // Handle FIGMA_API_KEY (priority: CLI > env > credentials)
   if (argv["figma-api-key"]) {
     auth.figmaApiKey = argv["figma-api-key"];
     config.configSources.figmaApiKey = "cli";
   } else if (process.env.FIGMA_API_KEY) {
     auth.figmaApiKey = process.env.FIGMA_API_KEY;
     config.configSources.figmaApiKey = "env";
+  } else if (credentials?.apiKey) {
+    auth.figmaApiKey = credentials.apiKey;
+    config.configSources.figmaApiKey = "credentials";
   }
 
-  // Handle FIGMA_OAUTH_TOKEN
+  // Handle FIGMA_OAUTH_TOKEN (priority: CLI > env > credentials)
   if (argv["figma-oauth-token"]) {
     auth.figmaOAuthToken = argv["figma-oauth-token"];
     config.configSources.figmaOAuthToken = "cli";
@@ -90,6 +97,10 @@ export function getServerConfig(isStdioMode: boolean): ServerConfig {
   } else if (process.env.FIGMA_OAUTH_TOKEN) {
     auth.figmaOAuthToken = process.env.FIGMA_OAUTH_TOKEN;
     config.configSources.figmaOAuthToken = "env";
+    auth.useOAuth = true;
+  } else if (credentials?.oauthToken) {
+    auth.figmaOAuthToken = credentials.oauthToken;
+    config.configSources.figmaOAuthToken = "credentials";
     auth.useOAuth = true;
   }
 
@@ -114,7 +125,10 @@ export function getServerConfig(isStdioMode: boolean): ServerConfig {
   // Validate configuration
   if (!auth.figmaApiKey && !auth.figmaOAuthToken) {
     console.error(
-      "Either FIGMA_API_KEY or FIGMA_OAUTH_TOKEN is required (via CLI argument or .env file)",
+      "Either FIGMA_API_KEY or FIGMA_OAUTH_TOKEN is required.\n" +
+      "Set up authentication with: fgm auth\n" +
+      "Or provide via CLI: --figma-api-key <token>\n" +
+      "Or via environment: FIGMA_API_KEY=<token>",
     );
     process.exit(1);
   }

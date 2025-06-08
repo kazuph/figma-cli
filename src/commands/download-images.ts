@@ -1,0 +1,99 @@
+import { FigmaService } from '../services/figma.js';
+import { loadCredentials } from '../utils/credentials.js';
+
+export interface DownloadImagesOptions {
+  fileKey: string;
+  nodes: {
+    nodeId: string;
+    imageRef?: string;
+    fileName: string;
+  }[];
+  localPath: string;
+  pngScale?: number;
+  svgOptions?: {
+    outlineText?: boolean;
+    includeId?: boolean;
+    simplifyStroke?: boolean;
+  };
+  figmaApiKey?: string;
+  figmaOauthToken?: string;
+}
+
+export async function downloadImagesCommand(options: DownloadImagesOptions): Promise<void> {
+  try {
+    // Get authentication
+    let auth = {
+      figmaApiKey: options.figmaApiKey || '',
+      figmaOAuthToken: options.figmaOauthToken || '',
+      useOAuth: !!options.figmaOauthToken
+    };
+
+    // Load from credentials if not provided
+    if (!auth.figmaApiKey && !auth.figmaOAuthToken) {
+      const credentials = await loadCredentials();
+      if (credentials?.apiKey) {
+        auth.figmaApiKey = credentials.apiKey;
+      } else if (credentials?.oauthToken) {
+        auth.figmaOAuthToken = credentials.oauthToken;
+        auth.useOAuth = true;
+      }
+    }
+
+    // Check if we have authentication
+    if (!auth.figmaApiKey && !auth.figmaOAuthToken) {
+      console.error('❌ No authentication found.');
+      console.error('Run: fgm auth');
+      console.error('Or provide: --figma-api-key <token>');
+      process.exit(1);
+    }
+
+    const figmaService = new FigmaService(auth);
+
+    console.error(`📥 Downloading ${options.nodes.length} images from ${options.fileKey}...`);
+
+    const imageFills = options.nodes.filter(({ imageRef }) => !!imageRef) as {
+      nodeId: string;
+      imageRef: string;
+      fileName: string;
+    }[];
+
+    const fillDownloads = figmaService.getImageFills(options.fileKey, imageFills, options.localPath);
+    
+    const renderRequests = options.nodes
+      .filter(({ imageRef }) => !imageRef)
+      .map(({ nodeId, fileName }) => ({
+        nodeId,
+        fileName,
+        fileType: fileName.endsWith(".svg") ? ("svg" as const) : ("png" as const),
+      }));
+
+    const renderDownloads = figmaService.getImages(
+      options.fileKey,
+      renderRequests,
+      options.localPath,
+      options.pngScale || 2,
+      options.svgOptions || {},
+    );
+
+    const downloads = await Promise.all([fillDownloads, renderDownloads]).then(([f, r]) => [
+      ...f,
+      ...r,
+    ]);
+
+    // Check if any download failed
+    const saveSuccess = !downloads.find((success) => !success);
+    
+    if (saveSuccess) {
+      console.error(`✅ Successfully downloaded ${downloads.length} images`);
+      console.log(`Downloaded: ${downloads.join(", ")}`);
+    } else {
+      console.error('❌ Some downloads failed');
+      process.exit(1);
+    }
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Error: ${message}`);
+    process.exit(1);
+  }
+}
