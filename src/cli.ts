@@ -67,7 +67,7 @@ async function main(): Promise<void> {
         })
         .positional('nodeId', {
           type: 'string',
-          describe: 'Node ID to fetch (from URL: ?node-id=<node-id>)'
+          describe: 'Node ID to fetch (format: 1234:5678, not 1234-5678. From URL: ?node-id=<node-id>)'
         })
         .option('depth', {
           type: 'number',
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
         })
         .option('node-id', {
           type: 'string',
-          description: 'Node ID to download'
+          description: 'Node ID to download (format: 1234:5678, not 1234-5678)'
         })
         .option('file-name', {
           type: 'string',
@@ -165,11 +165,14 @@ async function main(): Promise<void> {
   if (command === 'download-images') {
     const nodes = [];
     if (argv['node-id']) {
-      nodes.push({
+      const node: any = {
         nodeId: argv['node-id'] as string,
-        imageRef: argv['image-ref'] as string,
         fileName: argv['file-name'] as string,
-      });
+      };
+      if (argv['image-ref']) {
+        node.imageRef = argv['image-ref'] as string;
+      }
+      nodes.push(node);
     }
     
     await downloadImagesCommand({
