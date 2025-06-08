@@ -67,12 +67,18 @@ export async function downloadImagesCommand(options: DownloadImagesOptions): Pro
         fileType: fileName.endsWith(".svg") ? ("svg" as const) : ("png" as const),
       }));
 
+    const svgOptions = {
+      outlineText: options.svgOptions?.outlineText ?? false,
+      includeId: options.svgOptions?.includeId ?? false,
+      simplifyStroke: options.svgOptions?.simplifyStroke ?? false,
+    };
+
     const renderDownloads = figmaService.getImages(
       options.fileKey,
       renderRequests,
       options.localPath,
       options.pngScale || 2,
-      options.svgOptions || {},
+      svgOptions,
     );
 
     const downloads = await Promise.all([fillDownloads, renderDownloads]).then(([f, r]) => [
