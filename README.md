@@ -19,16 +19,18 @@
 ## Quick Installation
 
 ### Global CLI Installation
-```bash
-# Install globally from this repository
-npm install -g https://github.com/kazuph/figma-cli.git
 
-# Or clone and install locally
+#### Option 1: Direct install from GitHub
+```bash
+npm install -g https://github.com/kazuph/figma-cli.git
+```
+
+#### Option 2: Clone and install locally
+```bash
 git clone https://github.com/kazuph/figma-cli.git
 cd figma-cli
-npm install
-npm run build
-npm install -g .
+npm install        # Install dependencies
+npm install -g .   # Build and install globally (prepare script runs automatically)
 ```
 
 ### Usage
