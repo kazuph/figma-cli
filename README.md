@@ -33,6 +33,19 @@ npm install        # Install dependencies
 npm install -g .   # Build and install globally (prepare script runs automatically)
 ```
 
+### Authentication Setup
+First, set up your Figma API key using the interactive auth command:
+```bash
+# Setup authentication (interactive)
+figma auth
+
+# Show current credentials
+figma auth --show
+
+# Remove saved credentials
+figma auth --remove
+```
+
 ### Usage
 ```bash
 # Get Figma file data
@@ -45,7 +58,7 @@ figma download-images <fileKey> <localPath> --nodes '[{"nodeId":"xxx","fileName"
 figma-developer-mcp --figma-api-key=YOUR_KEY --stdio
 ```
 
-**Note**: You need a Figma API key. Get one from [Figma Developer Settings](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens).
+**Note**: You need a Figma API key. Get one from [Figma Developer Settings](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens). Use `figma auth` to set it up interactively, or pass it via `--figma-api-key` option.
 
 <div align="center">
   <a href="https://npmcharts.com/compare/figma-developer-mcp?interval=30">
