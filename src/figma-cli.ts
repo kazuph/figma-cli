@@ -7,9 +7,20 @@ import { resolve } from "path";
 import { FigmaService, type FigmaAuthOptions } from "./services/figma.js";
 import yaml from "js-yaml";
 import { Logger } from "./utils/logger.js";
+import { authCommand, type AuthOptions } from "./commands/auth.js";
+import { loadCredentials } from "./utils/credentials.js";
 
 // Load .env file
 config({ path: resolve(process.cwd(), ".env") });
+
+async function getDefaultApiKey() {
+  try {
+    const savedCredentials = await loadCredentials();
+    return process.env.FIGMA_API_KEY || savedCredentials?.apiKey;
+  } catch {
+    return process.env.FIGMA_API_KEY;
+  }
+}
 
 // CLI configuration
 const cli = yargs(hideBin(process.argv))
@@ -18,7 +29,6 @@ const cli = yargs(hideBin(process.argv))
   .option("figma-api-key", {
     type: "string",
     description: "Figma API key",
-    default: process.env.FIGMA_API_KEY,
   })
   .option("figma-oauth-token", {
     type: "string",
@@ -41,8 +51,39 @@ const cli = yargs(hideBin(process.argv))
     description: "Enable verbose logging",
     default: false,
   })
-  .demandOption(["figma-api-key"], "Figma API key is required")
   .help();
+
+// Auth command
+cli.command(
+  "auth",
+  "Setup Figma authentication",
+  (yargs) => {
+    return yargs
+      .option("remove", {
+        type: "boolean",
+        description: "Remove saved credentials",
+        default: false,
+      })
+      .option("show", {
+        type: "boolean",
+        description: "Show current credentials",
+        default: false,
+      });
+  },
+  async (argv) => {
+    try {
+      const options: AuthOptions = {
+        remove: argv.remove,
+        show: argv.show,
+      };
+      await authCommand(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : JSON.stringify(error);
+      console.error(`Error: ${message}`);
+      process.exit(1);
+    }
+  }
+);
 
 // Get data command
 cli.command(
@@ -66,8 +107,18 @@ cli.command(
   },
   async (argv) => {
     try {
+      let apiKey = argv["figma-api-key"];
+      if (!apiKey) {
+        apiKey = await getDefaultApiKey();
+      }
+      
+      if (!apiKey) {
+        console.error("Error: Figma API key is required. Run 'figma auth' to set up authentication or use --figma-api-key option.");
+        process.exit(1);
+      }
+
       const authOptions: FigmaAuthOptions = {
-        figmaApiKey: argv["figma-api-key"]!,
+        figmaApiKey: apiKey,
         figmaOAuthToken: argv["figma-oauth-token"] || "",
         useOAuth: argv["use-oauth"],
       };
@@ -157,8 +208,18 @@ cli.command(
   },
   async (argv) => {
     try {
+      let apiKey = argv["figma-api-key"];
+      if (!apiKey) {
+        apiKey = await getDefaultApiKey();
+      }
+      
+      if (!apiKey) {
+        console.error("Error: Figma API key is required. Run 'figma auth' to set up authentication or use --figma-api-key option.");
+        process.exit(1);
+      }
+
       const authOptions: FigmaAuthOptions = {
-        figmaApiKey: argv["figma-api-key"]!,
+        figmaApiKey: apiKey,
         figmaOAuthToken: argv["figma-oauth-token"] || "",
         useOAuth: argv["use-oauth"],
       };
