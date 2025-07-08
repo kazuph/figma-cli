@@ -74,10 +74,6 @@ async function main(): Promise<void> {
           type: 'number',
           description: 'How many levels deep to traverse'
         })
-        .option('depth-layers', {
-          type: 'number',
-          description: 'Limit output to N layers deep (1=top level only, 2=top+first children, etc.)'
-        })
         .epilog(`
 AI-OPTIMIZED USAGE EXAMPLES:
 
@@ -85,8 +81,8 @@ Basic usage:
   figma get-data RgZYvH2cuX4JvrD9ZQbCIP 9637:4948
 
 Hierarchical exploration (recommended for AI):
-  figma get-data <fileKey> <nodeId> --depth-layers 1    # Screen names only
-  figma get-data <fileKey> <nodeId> --depth-layers 2    # + First level children
+  figma get-data <fileKey> <nodeId> --depth 1          # Limit to 1 level deep
+  figma get-data <fileKey> <nodeId> --depth 2          # Limit to 2 levels deep
 
 Pipeline processing with yq:
   figma get-data <fileKey> <nodeId> | yq '.nodes[0].name'                    # Get screen name
@@ -94,7 +90,7 @@ Pipeline processing with yq:
   figma get-data <fileKey> <nodeId> | yq '.nodes[0].layout.dimensions'       # Get dimensions
 
 Complex one-liners:
-  figma get-data <fileKey> <nodeId> --depth-layers 2 | yq '.nodes[0].children[] | select(.type=="TEXT") | .text' | head -5
+  figma get-data <fileKey> <nodeId> --depth 2 | yq '.nodes[0].children[] | select(.type=="TEXT") | .text' | head -5
   figma get-data <fileKey> <nodeId> | yq '.nodes[0].children[] | select(.fills) | {name, fills}' | head -10
   figma get-data <fileKey> <nodeId> --json | jq '[.nodes[0].children[]? | {name, type, fills}] | unique_by(.name)'
 
@@ -106,7 +102,7 @@ FEATURES:
   • Clean, self-contained YAML (no global variables)
   • Silent by default (perfect for pipelines)  
   • Inline expanded values (no reference resolution needed)
-  • Hierarchical depth control for step-by-step exploration
+  • API-level depth control for step-by-step exploration
         `)
         .option('verbose', {
           type: 'boolean',
@@ -189,7 +185,6 @@ FEATURES:
       fileKey: argv.fileKey as string,
       nodeId: argv.nodeId as string,
       depth: argv.depth as number,
-      depthLayers: argv['depth-layers'] as number,
       json: argv.json as boolean,
       verbose: argv.verbose as boolean,
       figmaApiKey: argv['figma-api-key'] as string,

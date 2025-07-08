@@ -5,32 +5,6 @@ import type { SimplifiedDesign, SimplifiedNode } from "./services/simplify-node-
 import yaml from "js-yaml";
 import { Logger } from "./utils/logger.js";
 
-/**
- * Limit node tree to specified depth layers
- * @param nodes - Array of nodes to limit
- * @param maxLayers - Maximum number of layers (1 = top level only, 2 = top + first children, etc.)
- * @param currentLayer - Current layer depth (used for recursion)
- * @returns Filtered nodes
- */
-function limitNodeDepth(nodes: SimplifiedNode[], maxLayers: number, currentLayer: number = 1): SimplifiedNode[] {
-  if (currentLayer > maxLayers) {
-    return [];
-  }
-
-  return nodes.map(node => {
-    const limitedNode: SimplifiedNode = { ...node };
-    
-    // If we're at the max layer, remove children
-    if (currentLayer === maxLayers) {
-      delete limitedNode.children;
-    } else if (node.children && node.children.length > 0) {
-      // Recursively limit children depth
-      limitedNode.children = limitNodeDepth(node.children, maxLayers, currentLayer + 1);
-    }
-    
-    return limitedNode;
-  });
-}
 
 const serverInfo = {
   name: "Figma MCP Server",
@@ -64,7 +38,7 @@ function registerTools(
   // Tool to get file information
   server.tool(
     "get_figma_data",
-    "Get layout information from a Figma file - AI-optimized clean YAML output with hierarchical depth control",
+    "Get layout information from a Figma file - AI-optimized clean YAML output. ⚠️ WARNING: Using depth parameter results in incomplete layout data. For complete design implementation, avoid depth restrictions.",
     {
       fileKey: z
         .string()
@@ -83,14 +57,8 @@ function registerTools(
         .describe(
           "OPTIONAL. Do NOT use unless explicitly requested by the user. Controls how many levels deep to traverse the node tree (Figma API parameter)",
         ),
-      depthLayers: z
-        .number()
-        .optional()
-        .describe(
-          "Limit output to N layers deep (1=top level only, 2=top+first children, etc.) - Perfect for exploring designs step-by-step",
-        ),
     },
-    async ({ fileKey, nodeId, depth, depthLayers }) => {
+    async ({ fileKey, nodeId, depth }) => {
       try {
         Logger.log(
           `Fetching ${
@@ -108,17 +76,29 @@ function registerTools(
         Logger.log(`Successfully fetched file: ${file.name}`);
         const { nodes, components, componentSets, ...fileInfo } = file;
 
-        // Apply depth layers limitation if specified
-        const finalNodes = depthLayers 
-          ? limitNodeDepth(nodes, depthLayers)
-          : nodes;
+        const finalNodes = nodes;
 
-        const result = {
-          file: fileInfo,
-          nodes: finalNodes,
-          ...(Object.keys(components).length > 0 && { components }),
-          ...(Object.keys(componentSets).length > 0 && { componentSets }),
-        };
+        const result: any = {};
+
+        // Add depth warnings if depth limitation is applied
+        if (depth) {
+          result.warning = "⚠️ Layout with limited depth is incomplete. For complete design implementation, remove depth restrictions to fetch all layout data.";
+          
+          const depthInfo: any = {
+            current_api_depth: depth,
+            recommended_api_depth: "unlimited (remove depth parameter)"
+          };
+          result.depth_info = depthInfo;
+        }
+
+        result.file = fileInfo;
+        result.nodes = finalNodes;
+        if (Object.keys(components).length > 0) {
+          result.components = components;
+        }
+        if (Object.keys(componentSets).length > 0) {
+          result.componentSets = componentSets;
+        }
 
         Logger.log(`Generating ${outputFormat.toUpperCase()} result from file`);
         const formattedResult =

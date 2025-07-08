@@ -11,32 +11,6 @@ import { Logger } from "./utils/logger.js";
 import { authCommand, type AuthOptions } from "./commands/auth.js";
 import { loadCredentials } from "./utils/credentials.js";
 
-/**
- * Limit node tree to specified depth layers
- * @param nodes - Array of nodes to limit
- * @param maxLayers - Maximum number of layers (1 = top level only, 2 = top + first children, etc.)
- * @param currentLayer - Current layer depth (used for recursion)
- * @returns Filtered nodes
- */
-function limitNodeDepth(nodes: SimplifiedNode[], maxLayers: number, currentLayer: number = 1): SimplifiedNode[] {
-  if (currentLayer > maxLayers) {
-    return [];
-  }
-
-  return nodes.map(node => {
-    const limitedNode: SimplifiedNode = { ...node };
-    
-    // If we're at the max layer, remove children
-    if (currentLayer === maxLayers) {
-      delete limitedNode.children;
-    } else if (node.children && node.children.length > 0) {
-      // Recursively limit children depth
-      limitedNode.children = limitNodeDepth(node.children, maxLayers, currentLayer + 1);
-    }
-    
-    return limitedNode;
-  });
-}
 
 // Load .env file
 config({ path: resolve(process.cwd(), ".env") });
@@ -86,8 +60,8 @@ COMMON USAGE PATTERNS:
 
 1. GET DESIGN DATA (AI-optimized clean YAML):
    figma get-data <fileKey> <nodeId>                    # Get node structure
-   figma get-data <fileKey> <nodeId> --depth-layers 1  # Screen names only
-   figma get-data <fileKey> <nodeId> --depth-layers 2  # + First level children
+   figma get-data <fileKey> <nodeId> --depth 1         # Limit to 1 level deep
+   figma get-data <fileKey> <nodeId> --depth 2         # Limit to 2 levels deep
 
 2. DOWNLOAD IMAGES:
    figma download-images <fileKey> ~/Downloads --nodes '[{"nodeId":"123:456","fileName":"button.svg"}]'
@@ -173,12 +147,17 @@ cli.command(
       .option("depth", {
         alias: "D",
         type: "number",
-        description: "How many levels deep to traverse the node tree (Figma API parameter)",
+        description: "⚠️ How many levels deep to traverse the node tree (Figma API parameter). WARNING: Limited depth results in incomplete layout data.",
       })
-      .option("depth-layers", {
-        type: "number",
-        description: "Limit output to N layers deep (1=top level only, 2=top+first children, etc.)",
-      });
+      .epilog(`
+⚠️  DEPTH LIMITATION WARNING:
+Using --depth option results in incomplete layout data.
+For complete design implementation, remove depth restrictions to fetch all layout data.
+
+Examples:
+  figma get-data <fileKey> <nodeId>                     # Complete layout (recommended)
+  figma get-data <fileKey> <nodeId> --depth 2          # Incomplete (API limited)
+      `);
   },
   async (argv) => {
     try {
@@ -230,17 +209,29 @@ cli.command(
       // Create clean structure with file info at top and inline expanded nodes
       const { nodes, components, componentSets, ...fileInfo } = file;
       
-      // Apply depth layers limitation if specified
-      const finalNodes = argv["depth-layers"] 
-        ? limitNodeDepth(nodes, argv["depth-layers"])
-        : nodes;
+      const finalNodes = nodes;
 
-      const result = {
-        file: fileInfo,
-        nodes: finalNodes,
-        ...(Object.keys(components).length > 0 && { components }),
-        ...(Object.keys(componentSets).length > 0 && { componentSets }),
-      };
+      const result: any = {};
+
+      // Add depth warnings if depth limitation is applied
+      if (argv.depth) {
+        result.warning = "⚠️ Layout with limited depth is incomplete. For complete design implementation, remove depth restrictions to fetch all layout data.";
+        
+        const depthInfo: any = {
+          current_api_depth: argv.depth,
+          recommended_api_depth: "unlimited (remove --depth option)"
+        };
+        result.depth_info = depthInfo;
+      }
+
+      result.file = fileInfo;
+      result.nodes = finalNodes;
+      if (Object.keys(components).length > 0) {
+        result.components = components;
+      }
+      if (Object.keys(componentSets).length > 0) {
+        result.componentSets = componentSets;
+      }
 
       const output = argv.format === "json" 
         ? JSON.stringify(result, null, 2) 

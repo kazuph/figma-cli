@@ -2,8 +2,8 @@
 
 AI-optimized Figma CLI with clean YAML output and hierarchical depth control
 
-[\![npm version](https://badge.fury.io/js/@kazuph%2Ffigma.svg)](https://www.npmjs.com/package/@kazuph/figma)
-[\![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm version](https://badge.fury.io/js/@kazuph%2Ffigma.svg)](https://www.npmjs.com/package/@kazuph/figma)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
@@ -13,7 +13,7 @@ AI-optimized Figma CLI with clean YAML output and hierarchical depth control
 - Inline expanded values (no reference resolution needed)
 
 **Hierarchical Depth Control**
-- Step-by-step design exploration with `--depth-layers`
+- Step-by-step design exploration with `--depth`
 - Perfect for understanding complex nested designs
 
 **Pipeline-Friendly**
@@ -33,7 +33,7 @@ AI-optimized Figma CLI with clean YAML output and hierarchical depth control
 ### Try without installation (npx)
 ```bash
 # Quick try with npx
-npx @kazuph/figma get-data <fileKey> <nodeId> --depth-layers 1
+npx @kazuph/figma get-data <fileKey> <nodeId> --depth 1
 
 # Setup auth first
 npx @kazuph/figma auth
@@ -66,8 +66,8 @@ Get your Figma API key from [Figma Developer Settings](https://help.figma.com/hc
 figma get-data <fileKey> <nodeId>
 
 # Hierarchical exploration (recommended for AI)
-figma get-data <fileKey> <nodeId> --depth-layers 1    # Screen names only
-figma get-data <fileKey> <nodeId> --depth-layers 2    # + First level children
+figma get-data <fileKey> <nodeId> --depth 1          # Limit to 1 level deep
+figma get-data <fileKey> <nodeId> --depth 2          # Limit to 2 levels deep
 
 # JSON output
 figma get-data <fileKey> <nodeId> --format json
@@ -148,7 +148,6 @@ figma get-data <fileKey> [nodeId] [options]
 ```
 
 Available options:
-- `--depth-layers <number>` - Limit output to N layers deep (1=top level only, 2=top+first children, etc.)
 - `-D, --depth <number>` - How many levels deep to traverse the node tree (Figma API parameter)
 - `--format <yaml|json>` - Output format (default: yaml)
 - `--verbose` - Enable verbose logging
@@ -217,7 +216,7 @@ Unlike other Figma tools, this CLI is specifically designed for modern AI workfl
 
 - **AI workflows** - Clean, predictable output structure
 - **Pipeline processing** - Silent operation, no log pollution
-- **Incremental exploration** - Hierarchical depth control for large designs
+- **Incremental exploration** - API-level depth control for large designs
 - **Developer productivity** - Direct integration with `yq`, `jq`, and shell scripts
 
 ## License
