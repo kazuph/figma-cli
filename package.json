@@ -59,6 +59,9 @@
   ],
   "author": "kazuph",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@figma/rest-api-spec": "^0.24.0",
     "@modelcontextprotocol/sdk": "^1.10.2",
