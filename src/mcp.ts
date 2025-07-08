@@ -1,9 +1,36 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { FigmaService, type FigmaAuthOptions } from "./services/figma.js";
-import type { SimplifiedDesign } from "./services/simplify-node-response.js";
+import type { SimplifiedDesign, SimplifiedNode } from "./services/simplify-node-response.js";
 import yaml from "js-yaml";
 import { Logger } from "./utils/logger.js";
+
+/**
+ * Limit node tree to specified depth layers
+ * @param nodes - Array of nodes to limit
+ * @param maxLayers - Maximum number of layers (1 = top level only, 2 = top + first children, etc.)
+ * @param currentLayer - Current layer depth (used for recursion)
+ * @returns Filtered nodes
+ */
+function limitNodeDepth(nodes: SimplifiedNode[], maxLayers: number, currentLayer: number = 1): SimplifiedNode[] {
+  if (currentLayer > maxLayers) {
+    return [];
+  }
+
+  return nodes.map(node => {
+    const limitedNode: SimplifiedNode = { ...node };
+    
+    // If we're at the max layer, remove children
+    if (currentLayer === maxLayers) {
+      delete limitedNode.children;
+    } else if (node.children && node.children.length > 0) {
+      // Recursively limit children depth
+      limitedNode.children = limitNodeDepth(node.children, maxLayers, currentLayer + 1);
+    }
+    
+    return limitedNode;
+  });
+}
 
 const serverInfo = {
   name: "Figma MCP Server",
@@ -37,7 +64,7 @@ function registerTools(
   // Tool to get file information
   server.tool(
     "get_figma_data",
-    "When the nodeId cannot be obtained, obtain the layout information about the entire Figma file",
+    "Get layout information from a Figma file - AI-optimized clean YAML output with hierarchical depth control",
     {
       fileKey: z
         .string()
@@ -54,10 +81,16 @@ function registerTools(
         .number()
         .optional()
         .describe(
-          "OPTIONAL. Do NOT use unless explicitly requested by the user. Controls how many levels deep to traverse the node tree,",
+          "OPTIONAL. Do NOT use unless explicitly requested by the user. Controls how many levels deep to traverse the node tree (Figma API parameter)",
+        ),
+      depthLayers: z
+        .number()
+        .optional()
+        .describe(
+          "Limit output to N layers deep (1=top level only, 2=top+first children, etc.) - Perfect for exploring designs step-by-step",
         ),
     },
-    async ({ fileKey, nodeId, depth }) => {
+    async ({ fileKey, nodeId, depth, depthLayers }) => {
       try {
         Logger.log(
           `Fetching ${
@@ -73,12 +106,18 @@ function registerTools(
         }
 
         Logger.log(`Successfully fetched file: ${file.name}`);
-        const { nodes, globalVars, ...metadata } = file;
+        const { nodes, components, componentSets, ...fileInfo } = file;
+
+        // Apply depth layers limitation if specified
+        const finalNodes = depthLayers 
+          ? limitNodeDepth(nodes, depthLayers)
+          : nodes;
 
         const result = {
-          metadata,
-          nodes,
-          globalVars,
+          file: fileInfo,
+          nodes: finalNodes,
+          ...(Object.keys(components).length > 0 && { components }),
+          ...(Object.keys(componentSets).length > 0 && { componentSets }),
         };
 
         Logger.log(`Generating ${outputFormat.toUpperCase()} result from file`);
@@ -167,11 +206,27 @@ function registerTools(
         const fillDownloads = figmaService.getImageFills(fileKey, imageFills, localPath);
         const renderRequests = nodes
           .filter(({ imageRef }) => !imageRef)
-          .map(({ nodeId, fileName }) => ({
-            nodeId,
-            fileName,
-            fileType: fileName.endsWith(".svg") ? ("svg" as const) : ("png" as const),
-          }));
+          .map(({ nodeId, fileName }) => {
+            // Determine file type from extension or default to svg
+            let fileType: "svg" | "png" = "svg";
+            let finalFileName = fileName;
+            
+            if (fileName.endsWith(".svg")) {
+              fileType = "svg";
+            } else if (fileName.endsWith(".png")) {
+              fileType = "png";
+            } else {
+              // If no extension, default to svg and add extension
+              fileType = "svg";
+              finalFileName = fileName + ".svg";
+            }
+            
+            return {
+              nodeId,
+              fileName: finalFileName,
+              fileType,
+            };
+          });
 
         const renderDownloads = figmaService.getImages(
           fileKey,

@@ -52,16 +52,7 @@ export type StrokeWeights = {
   bottom: number;
   left: number;
 };
-type StyleTypes =
-  | TextStyle
-  | SimplifiedFill[]
-  | SimplifiedLayout
-  | SimplifiedStroke
-  | SimplifiedEffects
-  | string;
-type GlobalVars = {
-  styles: Record<StyleId, StyleTypes>;
-};
+// Removed GlobalVars - now using inline expansion for better CLI/AI processing
 
 export interface SimplifiedDesign {
   name: string;
@@ -70,7 +61,6 @@ export interface SimplifiedDesign {
   nodes: SimplifiedNode[];
   components: Record<string, SimplifiedComponentDefinition>;
   componentSets: Record<string, SimplifiedComponentSetDefinition>;
-  globalVars: GlobalVars;
 }
 
 export interface ComponentProperties {
@@ -87,16 +77,16 @@ export interface SimplifiedNode {
   boundingBox?: BoundingBox;
   // text
   text?: string;
-  textStyle?: string;
+  textStyle?: TextStyle;
   // appearance
-  fills?: string;
+  fills?: SimplifiedFill[];
   styles?: string;
-  strokes?: string;
-  effects?: string;
+  strokes?: SimplifiedStroke;
+  effects?: SimplifiedEffects;
   opacity?: number;
   borderRadius?: string;
   // layout & alignment
-  layout?: string;
+  layout?: SimplifiedLayout;
   // backgroundColor?: ColorValue; // Deprecated by Figma API
   // for rect-specific strokes, etc.
   componentId?: string;
@@ -166,13 +156,9 @@ export function parseFigmaResponse(data: GetFileResponse | GetFileNodesResponse)
 
   const { name, lastModified, thumbnailUrl } = data;
 
-  let globalVars: GlobalVars = {
-    styles: {},
-  };
-
   const simplifiedNodes: SimplifiedNode[] = nodesToParse
     .filter(isVisible)
-    .map((n) => parseNode(globalVars, n))
+    .map((n) => parseNode(n))
     .filter((child) => child !== null && child !== undefined);
 
   const simplifiedDesign: SimplifiedDesign = {
@@ -182,7 +168,6 @@ export function parseFigmaResponse(data: GetFileResponse | GetFileNodesResponse)
     nodes: simplifiedNodes,
     components: sanitizedComponents,
     componentSets: sanitizedComponentSets,
-    globalVars,
   };
 
   return removeEmptyKeys(simplifiedDesign);
@@ -206,32 +191,9 @@ const findNodeById = (id: string, nodes: SimplifiedNode[]): SimplifiedNode | und
   return undefined;
 };
 
-/**
- * Find or create global variables
- * @param globalVars - Global variables object
- * @param value - Value to store
- * @param prefix - Variable ID prefix
- * @returns Variable ID
- */
-function findOrCreateVar(globalVars: GlobalVars, value: any, prefix: string): StyleId {
-  // Check if the same value already exists
-  const [existingVarId] =
-    Object.entries(globalVars.styles).find(
-      ([_, existingValue]) => JSON.stringify(existingValue) === JSON.stringify(value),
-    ) ?? [];
-
-  if (existingVarId) {
-    return existingVarId as StyleId;
-  }
-
-  // Create a new variable if it doesn't exist
-  const varId = generateVarId(prefix);
-  globalVars.styles[varId] = value;
-  return varId;
-}
+// Removed findOrCreateVar function - now using inline expansion for better CLI/AI processing
 
 function parseNode(
-  globalVars: GlobalVars,
   n: FigmaDocumentNode,
   parent?: FigmaDocumentNode,
 ): SimplifiedNode | null {
@@ -279,30 +241,29 @@ function parseNode(
       textAlignHorizontal: style.textAlignHorizontal,
       textAlignVertical: style.textAlignVertical,
     };
-    simplified.textStyle = findOrCreateVar(globalVars, textStyle, "style");
+    simplified.textStyle = textStyle;
   }
 
   // fills & strokes
   if (hasValue("fills", n) && Array.isArray(n.fills) && n.fills.length) {
-    // const fills = simplifyFills(n.fills.map(parsePaint));
     const fills = n.fills.map(parsePaint);
-    simplified.fills = findOrCreateVar(globalVars, fills, "fill");
+    simplified.fills = fills;
   }
 
   const strokes = buildSimplifiedStrokes(n);
   if (strokes.colors.length) {
-    simplified.strokes = findOrCreateVar(globalVars, strokes, "stroke");
+    simplified.strokes = strokes;
   }
 
   const effects = buildSimplifiedEffects(n);
   if (Object.keys(effects).length) {
-    simplified.effects = findOrCreateVar(globalVars, effects, "effect");
+    simplified.effects = effects;
   }
 
   // Process layout
   const layout = buildSimplifiedLayout(n, parent);
   if (Object.keys(layout).length > 1) {
-    simplified.layout = findOrCreateVar(globalVars, layout, "layout");
+    simplified.layout = layout;
   }
 
   // Keep other simple properties directly
@@ -329,7 +290,7 @@ function parseNode(
   if (hasValue("children", n) && n.children.length > 0) {
     const children = n.children
       .filter(isVisible)
-      .map((child) => parseNode(globalVars, child, n))
+      .map((child) => parseNode(child, n))
       .filter((child) => child !== null && child !== undefined);
     if (children.length) {
       simplified.children = children;

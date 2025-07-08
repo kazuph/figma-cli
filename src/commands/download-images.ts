@@ -61,11 +61,27 @@ export async function downloadImagesCommand(options: DownloadImagesOptions): Pro
     
     const renderRequests = options.nodes
       .filter(({ imageRef }) => !imageRef)
-      .map(({ nodeId, fileName }) => ({
-        nodeId,
-        fileName,
-        fileType: fileName.endsWith(".svg") ? ("svg" as const) : ("png" as const),
-      }));
+      .map(({ nodeId, fileName }) => {
+        // Determine file type from extension or default to svg
+        let fileType: "svg" | "png" = "svg";
+        let finalFileName = fileName;
+        
+        if (fileName.endsWith(".svg")) {
+          fileType = "svg";
+        } else if (fileName.endsWith(".png")) {
+          fileType = "png";
+        } else {
+          // If no extension, default to svg and add extension
+          fileType = "svg";
+          finalFileName = fileName + ".svg";
+        }
+        
+        return {
+          nodeId,
+          fileName: finalFileName,
+          fileType,
+        };
+      });
 
     const svgOptions = {
       outlineText: options.svgOptions?.outlineText ?? false,

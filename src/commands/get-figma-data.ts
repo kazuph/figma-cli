@@ -1,14 +1,45 @@
 import { FigmaService } from '../services/figma.js';
 import { loadCredentials } from '../utils/credentials.js';
+import { SimplifiedNode } from '../services/simplify-node-response.js';
+import { Logger } from '../utils/logger.js';
 import yaml from 'js-yaml';
 
 export interface GetFigmaDataOptions {
   fileKey: string;
   nodeId?: string;
   depth?: number;
+  depthLayers?: number;
   json?: boolean;
+  verbose?: boolean;
   figmaApiKey?: string;
   figmaOauthToken?: string;
+}
+
+/**
+ * Limit node tree to specified depth layers
+ * @param nodes - Array of nodes to limit
+ * @param maxLayers - Maximum number of layers (1 = top level only, 2 = top + first children, etc.)
+ * @param currentLayer - Current layer depth (used for recursion)
+ * @returns Filtered nodes
+ */
+function limitNodeDepth(nodes: SimplifiedNode[], maxLayers: number, currentLayer: number = 1): SimplifiedNode[] {
+  if (currentLayer > maxLayers) {
+    return [];
+  }
+
+  return nodes.map(node => {
+    const limitedNode: SimplifiedNode = { ...node };
+    
+    // If we're at the max layer, remove children
+    if (currentLayer === maxLayers) {
+      delete limitedNode.children;
+    } else if (node.children && node.children.length > 0) {
+      // Recursively limit children depth
+      limitedNode.children = limitNodeDepth(node.children, maxLayers, currentLayer + 1);
+    }
+    
+    return limitedNode;
+  });
 }
 
 export async function getFigmaDataCommand(options: GetFigmaDataOptions): Promise<void> {
@@ -39,9 +70,19 @@ export async function getFigmaDataCommand(options: GetFigmaDataOptions): Promise
       process.exit(1);
     }
 
+    // Configure logging based on verbose option
+    Logger.isHTTP = false;
+    if (!options.verbose) {
+      // Disable all logging when not in verbose mode
+      Logger.log = () => {};
+      Logger.error = () => {};
+    }
+
     const figmaService = new FigmaService(auth);
 
-    console.error(`🔍 Fetching ${options.nodeId ? `node ${options.nodeId}` : 'file'} from ${options.fileKey}...`);
+    if (options.verbose) {
+      console.error(`🔍 Fetching ${options.nodeId ? `node ${options.nodeId}` : 'file'} from ${options.fileKey}...`);
+    }
 
     let file;
     if (options.nodeId) {
@@ -50,20 +91,27 @@ export async function getFigmaDataCommand(options: GetFigmaDataOptions): Promise
       file = await figmaService.getFile(options.fileKey, options.depth);
     }
 
-    console.error(`✅ Successfully fetched: ${file.name}`);
+    if (options.verbose) {
+      console.error(`✅ Successfully fetched: ${file.name}`);
+    }
 
-    const { nodes, globalVars, ...metadata } = file;
+    // Create clean structure with file info at top and inline expanded nodes
+    const { nodes, components, componentSets, ...fileInfo } = file;
+    
+    // Apply depth layers limitation if specified
+    const finalNodes = options.depthLayers 
+      ? limitNodeDepth(nodes, options.depthLayers)
+      : nodes;
+    
     const result = {
-      metadata,
-      nodes,
-      globalVars,
+      file: fileInfo,
+      nodes: finalNodes,
+      ...(Object.keys(components).length > 0 && { components }),
+      ...(Object.keys(componentSets).length > 0 && { componentSets }),
     };
 
-    // Output the result
-    const output = options.json 
-      ? JSON.stringify(result, null, 2) 
-      : yaml.dump(result);
-    
+    // Output the result - always YAML for clean CLI output
+    const output = yaml.dump(result);
     console.log(output);
 
   } catch (error) {

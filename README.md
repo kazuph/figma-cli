@@ -16,16 +16,35 @@
   <h3>Give your coding agent access to your Figma data.<br/>Implement designs in any framework in one-shot.</h3>
 </div>
 
-## Quick Installation
+## Quick Start
+
+### Try without installation (npx)
+```bash
+# Quick try with npx
+npx @kazuph/figma get-data <fileKey> <nodeId> --depth-layers 1
+
+# Setup auth first
+npx @kazuph/figma auth
+
+# Then explore your designs
+npx @kazuph/figma get-data <fileKey> <nodeId> | yq '.nodes[0].name'
+```
+
+## Installation
 
 ### Global CLI Installation
 
-#### Option 1: Direct install from GitHub
+#### Option 1: Install from npm
+```bash
+npm install -g @kazuph/figma
+```
+
+#### Option 2: Direct install from GitHub
 ```bash
 npm install -g https://github.com/kazuph/figma-cli.git
 ```
 
-#### Option 2: Clone and install locally
+#### Option 3: Clone and install locally
 ```bash
 git clone https://github.com/kazuph/figma-cli.git
 cd figma-cli
@@ -47,13 +66,46 @@ figma auth --remove
 ```
 
 ### Usage
+
+#### Basic Commands
 ```bash
-# Get Figma file data
+# Get Figma file data (clean YAML output)
 figma get-data <fileKey> [nodeId]
 
 # Download images
 figma download-images <fileKey> <localPath> --nodes '[{"nodeId":"xxx","fileName":"icon.svg"}]'
+```
 
+#### Advanced CLI Features
+```bash
+# Hierarchical depth control - perfect for exploring large designs
+figma get-data <fileKey> <nodeId> --depth-layers 1     # Top level only (screen names)
+figma get-data <fileKey> <nodeId> --depth-layers 2     # First level children
+
+# Figma API depth control (different from depth-layers)
+figma get-data <fileKey> <nodeId> --depth 2           # or -D 2 (short form)
+
+# Pipeline-friendly output (silent by default)
+figma get-data <fileKey> <nodeId> | yq '.nodes[0].name'
+figma get-data <fileKey> <nodeId> | yq '.nodes[0].fills'
+
+# JSON output for programmatic use
+figma get-data <fileKey> <nodeId> --format json | jq '.nodes[0].name'    # Main command
+figma get-data <fileKey> <nodeId> --format json | jq '.nodes[0]'          # Same command, different query
+
+# Verbose output for debugging
+figma get-data <fileKey> <nodeId> --verbose
+```
+
+#### AI-Optimized Output
+The CLI outputs clean, self-contained YAML with:
+- **Inline expanded values**: No global variables or references
+- **Silent operation**: No log pollution for pipeline processing  
+- **Hierarchical control**: Perfect for step-by-step design exploration
+- **Direct property access**: `yq '.nodes[0].fills'` → `["#F7F7F7"]`
+
+#### MCP Server (Legacy)
+```bash
 # Use as MCP server (original functionality)
 figma-developer-mcp --figma-api-key=YOUR_KEY --stdio
 ```

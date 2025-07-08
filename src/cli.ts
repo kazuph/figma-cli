@@ -59,7 +59,7 @@ async function main(): Promise<void> {
           description: 'Port for HTTP server mode'
         });
     })
-    .command('get-data <fileKey> [nodeId]', 'Get Figma file or node data', (yargs) => {
+    .command('get-data <fileKey> [nodeId]', 'Get Figma file or node data - AI-optimized clean YAML output', (yargs) => {
       return yargs
         .positional('fileKey', {
           type: 'string',
@@ -70,9 +70,44 @@ async function main(): Promise<void> {
           describe: 'Node ID to fetch (format: 1234:5678, not 1234-5678. From URL: ?node-id=<node-id>)'
         })
         .option('depth', {
+          alias: 'D',
           type: 'number',
           description: 'How many levels deep to traverse'
         })
+        .option('depth-layers', {
+          type: 'number',
+          description: 'Limit output to N layers deep (1=top level only, 2=top+first children, etc.)'
+        })
+        .epilog(`
+AI-OPTIMIZED USAGE EXAMPLES:
+
+Basic usage:
+  figma get-data RgZYvH2cuX4JvrD9ZQbCIP 9637:4948
+
+Hierarchical exploration (recommended for AI):
+  figma get-data <fileKey> <nodeId> --depth-layers 1    # Screen names only
+  figma get-data <fileKey> <nodeId> --depth-layers 2    # + First level children
+
+Pipeline processing with yq:
+  figma get-data <fileKey> <nodeId> | yq '.nodes[0].name'                    # Get screen name
+  figma get-data <fileKey> <nodeId> | yq '.nodes[0].fills'                   # Get colors
+  figma get-data <fileKey> <nodeId> | yq '.nodes[0].layout.dimensions'       # Get dimensions
+
+Complex one-liners:
+  figma get-data <fileKey> <nodeId> --depth-layers 2 | yq '.nodes[0].children[] | select(.type=="TEXT") | .text' | head -5
+  figma get-data <fileKey> <nodeId> | yq '.nodes[0].children[] | select(.fills) | {name, fills}' | head -10
+  figma get-data <fileKey> <nodeId> --json | jq '[.nodes[0].children[]? | {name, type, fills}] | unique_by(.name)'
+
+Output formats:
+  figma get-data <fileKey> <nodeId> --json | jq '.nodes[0]'    # JSON output
+  figma get-data <fileKey> <nodeId> --verbose                  # With debug logs
+
+FEATURES:
+  • Clean, self-contained YAML (no global variables)
+  • Silent by default (perfect for pipelines)  
+  • Inline expanded values (no reference resolution needed)
+  • Hierarchical depth control for step-by-step exploration
+        `)
         .option('verbose', {
           type: 'boolean',
           description: 'Output verbose information'
@@ -154,7 +189,9 @@ async function main(): Promise<void> {
       fileKey: argv.fileKey as string,
       nodeId: argv.nodeId as string,
       depth: argv.depth as number,
+      depthLayers: argv['depth-layers'] as number,
       json: argv.json as boolean,
+      verbose: argv.verbose as boolean,
       figmaApiKey: argv['figma-api-key'] as string,
       figmaOauthToken: argv['figma-oauth-token'] as string,
     });
