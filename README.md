@@ -1,20 +1,32 @@
-<a href="https://www.framelink.ai/?utm_source=github&utm_medium=referral&utm_campaign=readme" target="_blank" rel="noopener">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://www.framelink.ai/github/HeaderDark.png" />
-    <img alt="Framelink" src="https://www.framelink.ai/github/HeaderLight.png" />
-  </picture>
-</a>
+# @kazuph/figma
 
-<div align="center">
-  <h1>Figma CLI & MCP Server</h1>
-  <p>
-    🌐 Available in:
-    <a href="README.ko.md">한국어 (Korean)</a> |
-    <a href="README.ja.md">日本語 (Japanese)</a> |
-    <a href="README.zh.md">中文 (Chinese)</a>
-  </p>
-  <h3>Give your coding agent access to your Figma data.<br/>Implement designs in any framework in one-shot.</h3>
-</div>
+AI-optimized Figma CLI with clean YAML output and hierarchical depth control
+
+[\![npm version](https://badge.fury.io/js/@kazuph%2Ffigma.svg)](https://www.npmjs.com/package/@kazuph/figma)
+[\![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+**AI-Optimized Output**
+- Clean, self-contained YAML (no global variables)
+- Silent by default (perfect for Unix pipelines)
+- Inline expanded values (no reference resolution needed)
+
+**Hierarchical Depth Control**
+- Step-by-step design exploration with `--depth-layers`
+- Perfect for understanding complex nested designs
+
+**Pipeline-Friendly**
+- Works seamlessly with `yq`, `jq`, and other CLI tools
+- Zero log pollution in stdout
+
+**Image Downloads**
+- SVG and PNG export support
+- Automatic file extension handling
+
+**MCP Server Integration**
+- Claude Desktop integration support
+- Stdio and HTTP server modes
 
 ## Quick Start
 
@@ -30,217 +42,182 @@ npx @kazuph/figma auth
 npx @kazuph/figma get-data <fileKey> <nodeId> | yq '.nodes[0].name'
 ```
 
-## Installation
-
-### Global CLI Installation
-
-#### Option 1: Install from npm
+### Installation
 ```bash
 npm install -g @kazuph/figma
 ```
 
-#### Option 2: Direct install from GitHub
+### Authentication
 ```bash
-npm install -g https://github.com/kazuph/figma-cli.git
-```
-
-#### Option 3: Clone and install locally
-```bash
-git clone https://github.com/kazuph/figma-cli.git
-cd figma-cli
-npm install        # Install dependencies
-npm install -g .   # Build and install globally (prepare script runs automatically)
-```
-
-### Authentication Setup
-First, set up your Figma API key using the interactive auth command:
-```bash
-# Setup authentication (interactive)
+# Interactive setup
 figma auth
 
 # Show current credentials
 figma auth --show
-
-# Remove saved credentials
-figma auth --remove
 ```
 
-### Usage
+Get your Figma API key from [Figma Developer Settings](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens).
 
-#### Basic Commands
+## Usage Examples
+
+### Data Extraction
 ```bash
-# Get Figma file data (clean YAML output)
-figma get-data <fileKey> [nodeId]
+# Basic usage
+figma get-data <fileKey> <nodeId>
 
-# Download images
-figma download-images <fileKey> <localPath> --nodes '[{"nodeId":"xxx","fileName":"icon.svg"}]'
+# Hierarchical exploration (recommended for AI)
+figma get-data <fileKey> <nodeId> --depth-layers 1    # Screen names only
+figma get-data <fileKey> <nodeId> --depth-layers 2    # + First level children
+
+# JSON output
+figma get-data <fileKey> <nodeId> --format json
 ```
 
-#### Advanced CLI Features
+### Pipeline Processing with yq
 ```bash
-# Hierarchical depth control - perfect for exploring large designs
-figma get-data <fileKey> <nodeId> --depth-layers 1     # Top level only (screen names)
-figma get-data <fileKey> <nodeId> --depth-layers 2     # First level children
-
-# Figma API depth control (different from depth-layers)
-figma get-data <fileKey> <nodeId> --depth 2           # or -D 2 (short form)
-
-# Pipeline-friendly output (silent by default)
+# Get screen name
 figma get-data <fileKey> <nodeId> | yq '.nodes[0].name'
-figma get-data <fileKey> <nodeId> | yq '.nodes[0].fills'
 
-# JSON output for programmatic use
-figma get-data <fileKey> <nodeId> --format json | jq '.nodes[0].name'    # Main command
-figma get-data <fileKey> <nodeId> --format json | jq '.nodes[0]'          # Same command, different query
+# Get all text content  
+figma get-data <fileKey> <nodeId> | yq '.. | select(has("text")) | .text' | head -10
 
-# Verbose output for debugging
-figma get-data <fileKey> <nodeId> --verbose
+# List all colors used
+figma get-data <fileKey> <nodeId> | yq '.. | select(has("fills")) | .fills[]' | sort | uniq
+
+# Find buttons by name pattern
+figma get-data <fileKey> <nodeId> | yq '.. | select(.name? | test("(?i)button")) | .name'
+
+# Count total elements
+figma get-data <fileKey> <nodeId> | yq '[.. | select(has("name"))] | length'
+
+# List all component types used
+figma get-data <fileKey> <nodeId> | yq '[.. | select(has("type")) | .type] | unique'
 ```
 
-#### AI-Optimized Output
-The CLI outputs clean, self-contained YAML with:
-- **Inline expanded values**: No global variables or references
-- **Silent operation**: No log pollution for pipeline processing  
-- **Hierarchical control**: Perfect for step-by-step design exploration
-- **Direct property access**: `yq '.nodes[0].fills'` → `["#F7F7F7"]`
-
-#### MCP Server (Legacy)
+### Image Downloads
 ```bash
-# Use as MCP server (original functionality)
-figma-developer-mcp --figma-api-key=YOUR_KEY --stdio
+# Download as SVG (default when no extension)
+figma download-images <fileKey> ~/Downloads --nodes '[{"nodeId":"123:456","fileName":"button"}]'
+# saves as button.svg
+
+# Download as PNG (specify .png extension)
+figma download-images <fileKey> ~/Downloads --nodes '[{"nodeId":"123:456","fileName":"button.png"}]'
+# saves as button.png
+
+# Download multiple images
+figma download-images <fileKey> ~/Downloads --nodes '[
+  {"nodeId":"123:456","fileName":"icon"},
+  {"nodeId":"123:457","fileName":"photo.png"},
+  {"nodeId":"123:458","fileName":"logo.svg"}
+]'
 ```
 
-**Note**: You need a Figma API key. Get one from [Figma Developer Settings](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens). Use `figma auth` to set it up interactively, or pass it via `--figma-api-key` option.
+### MCP Server (Claude Desktop Integration)
+```bash
+# Start MCP server
+figma mcp
 
-<div align="center">
-  <a href="https://npmcharts.com/compare/figma-developer-mcp?interval=30">
-    <img alt="weekly downloads" src="https://img.shields.io/npm/dm/figma-developer-mcp.svg">
-  </a>
-  <a href="https://github.com/GLips/Figma-Context-MCP/blob/main/LICENSE">
-    <img alt="MIT License" src="https://img.shields.io/github/license/GLips/Figma-Context-MCP" />
-  </a>
-  <a href="https://framelink.ai/discord">
-    <img alt="Discord" src="https://img.shields.io/discord/1352337336913887343?color=7389D8&label&logo=discord&logoColor=ffffff" />
-  </a>
-  <br />
-  <a href="https://twitter.com/glipsman">
-    <img alt="Twitter" src="https://img.shields.io/twitter/url?url=https%3A%2F%2Fx.com%2Fglipsman&label=%40glipsman" />
-  </a>
-</div>
+# HTTP mode (alternative)
+figma mcp --port 3000
+```
 
-<br/>
-
-Give [Cursor](https://cursor.sh/) and other AI-powered coding tools access to your Figma files with this [Model Context Protocol](https://modelcontextprotocol.io/introduction) server.
-
-When Cursor has access to Figma design data, it's **way** better at one-shotting designs accurately than alternative approaches like pasting screenshots.
-
-<h3><a href="https://www.framelink.ai/docs/quickstart?utm_source=github&utm_medium=referral&utm_campaign=readme">See quickstart instructions →</a></h3>
-
-## Demo
-
-[Watch a demo of building a UI in Cursor with Figma design data](https://youtu.be/6G9yb-LrEqg)
-
-[![Watch the video](https://img.youtube.com/vi/6G9yb-LrEqg/maxresdefault.jpg)](https://youtu.be/6G9yb-LrEqg)
-
-## How it works
-
-1. Open your IDE's chat (e.g. agent mode in Cursor).
-2. Paste a link to a Figma file, frame, or group.
-3. Ask Cursor to do something with the Figma file—e.g. implement the design.
-4. Cursor will fetch the relevant metadata from Figma and use it to write your code.
-
-This MCP server is specifically designed for use with Cursor. Before responding with context from the [Figma API](https://www.figma.com/developers/api), it simplifies and translates the response so only the most relevant layout and styling information is provided to the model.
-
-Reducing the amount of context provided to the model helps make the AI more accurate and the responses more relevant.
-
-## Getting Started
-
-Many code editors and other AI clients use a configuration file to manage MCP servers.
-
-The `figma-developer-mcp` server can be configured by adding the following to your configuration file.
-
-> NOTE: You will need to create a Figma access token to use this server. Instructions on how to create a Figma API access token can be found [here](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens).
-
-### MacOS / Linux
+#### Claude Desktop Configuration
+Add to your Claude Desktop MCP configuration:
 
 ```json
 {
   "mcpServers": {
-    "Framelink Figma MCP": {
+    "figma": {
       "command": "npx",
-      "args": ["-y", "figma-developer-mcp", "--figma-api-key=YOUR-KEY", "--stdio"]
+      "args": ["-y", "@kazuph/figma", "mcp"]
     }
   }
 }
 ```
 
-### Windows
+## Command Reference
 
-```json
-{
-  "mcpServers": {
-    "Framelink Figma MCP": {
-      "command": "cmd",
-      "args": ["/c", "npx", "-y", "figma-developer-mcp", "--figma-api-key=YOUR-KEY", "--stdio"]
-    }
-  }
-}
+### figma get-data
+Get layout information from a Figma file with AI-optimized clean YAML output.
+
+```bash
+figma get-data <fileKey> [nodeId] [options]
 ```
 
-Or you can set `FIGMA_API_KEY` and `PORT` in the `env` field.
+Available options:
+- `--depth-layers <number>` - Limit output to N layers deep (1=top level only, 2=top+first children, etc.)
+- `-D, --depth <number>` - How many levels deep to traverse the node tree (Figma API parameter)
+- `--format <yaml|json>` - Output format (default: yaml)
+- `--verbose` - Enable verbose logging
 
-If you need more information on how to configure the Framelink Figma MCP server, see the [Framelink docs](https://www.framelink.ai/docs/quickstart?utm_source=github&utm_medium=referral&utm_campaign=readme).
+### figma download-images
+Download SVG and PNG images from a Figma file. Format determined by fileName extension (.svg/.png), defaults to .svg.
 
-## Star History
+```bash
+figma download-images <fileKey> <localPath> [options]
+```
 
-<a href="https://star-history.com/#GLips/Figma-Context-MCP"><img src="https://api.star-history.com/svg?repos=GLips/Figma-Context-MCP&type=Date" alt="Star History Chart" width="600" /></a>
+Available options:
+- `--nodes <json>` - JSON string of nodes to download (array of {nodeId, fileName, imageRef?})
+- `--png-scale <number>` - Export scale for PNG images (default: 2)
+- `--svg-outline-text` - Whether to outline text in SVG exports (default: true)
+- `--svg-include-id` - Whether to include IDs in SVG exports (default: false)
+- `--svg-simplify-stroke` - Whether to simplify strokes in SVG exports (default: true)
 
-## Learn More
+### figma auth
+Setup Figma authentication.
 
-The Framelink Figma MCP server is simple but powerful. Get the most out of it by learning more at the [Framelink](https://framelink.ai?utm_source=github&utm_medium=referral&utm_campaign=readme) site.
+```bash
+figma auth [options]
+```
 
-<!-- SPONSORS:LIST:START -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
+Available options:
+- `--show` - Show current credentials
+- `--remove` - Remove saved credentials
 
-## Sponsors
+### figma mcp
+Start MCP server for integration with Claude Desktop.
 
-### 🥇 Gold Sponsors
+```bash
+figma mcp [options]
+```
 
-<table>
-  <tr>
-   <td align="center"><a href="https://framelink.ai/?ref=framelink-mcp&utm_source=github&utm_medium=referral&utm_campaign=framelink-mcp"><img src="https://avatars.githubusercontent.com/u/204619719" width="180" alt="Framelink"/><br />Framelink</a></td>
-  </tr>
-</table>
+Available options:
+- `--stdio` - Run in stdio mode for MCP integration (default: true)
+- `--port <number>` - Port for HTTP server mode (alternative to stdio)
 
-### 🥈 Silver Sponsors
+## Output Structure
 
-<table>
-  <tr>
-   <!-- <td align="center"><a href=""><img src="" width="150" alt="tbd"/><br />Title</a></td> -->
-  </tr>
-</table>
+The CLI outputs clean, hierarchical YAML/JSON:
 
-### 🥉 Bronze Sponsors
+```yaml
+file:
+  name: "Your Design File"
+  lastModified: "2025-01-01T00:00:00Z"
+nodes:
+  - id: "123:456"
+    name: "Button"
+    type: "INSTANCE"
+    fills: ["#FF0000"]
+    layout:
+      dimensions:
+        width: 100
+        height: 40
+    children: [...]
+components: {...}
+componentSets: {...}
+```
 
-<table>
-  <tr>
-   <!-- <td align="center"><a href=""><img src="" width="120" alt="tbd"/><br />tbd</a></td>-->
-  </tr>
-</table>
+## Why This CLI?
 
-### 😻 Smaller Backers
+Unlike other Figma tools, this CLI is specifically designed for modern AI workflows:
 
-<table>
-  <tr>
-   <!-- <td align="center"><a href=""><img src="" width="100" alt="tbd"/><br />tbd</a></td>-->
-  </tr>
-  <tr>
-   <!-- <td align="center"><a href=""><img src="" width="100" alt="tbd"/><br />tbd</a></td>-->
-  </tr>
-</table>
+- **AI workflows** - Clean, predictable output structure
+- **Pipeline processing** - Silent operation, no log pollution
+- **Incremental exploration** - Hierarchical depth control for large designs
+- **Developer productivity** - Direct integration with `yq`, `jq`, and shell scripts
 
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
+## License
 
-<!-- SPONSORS:LIST:END -->
+MIT
+EOF < /dev/null
