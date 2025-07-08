@@ -129,7 +129,10 @@ Add to your Claude Desktop MCP configuration:
   "mcpServers": {
     "figma": {
       "command": "npx",
-      "args": ["-y", "@kazuph/figma", "mcp"]
+      "args": ["-y", "@kazuph/figma", "mcp"],
+      "env": {
+        "FIGMA_API_KEY": "your-figma-api-key-here"
+      }
     }
   }
 }
