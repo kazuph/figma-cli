@@ -1,6 +1,6 @@
 {
   "name": "@kazuph/figma",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "AI-optimized Figma CLI with clean YAML output and hierarchical depth control",
   "type": "module",
   "main": "dist/index.js",
