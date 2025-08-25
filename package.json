@@ -65,6 +65,7 @@
   "dependencies": {
     "@figma/rest-api-spec": "^0.24.0",
     "@modelcontextprotocol/sdk": "^1.10.2",
+    "@types/sharp": "^0.31.1",
     "@types/yargs": "^17.0.33",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
@@ -73,6 +74,7 @@
     "inquirer": "^12.6.3",
     "js-yaml": "^4.1.0",
     "remeda": "^2.20.1",
+    "sharp": "^0.34.3",
     "yargs": "^17.7.2",
     "zod": "^3.24.2"
   },
