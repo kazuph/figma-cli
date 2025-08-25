@@ -11,7 +11,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "resolveJsonModule": true,
-    "verbatimModuleSyntax": true,
+    "verbatimModuleSyntax": false,
     "allowJs": true,
     "checkJs": true,
 
@@ -24,8 +24,10 @@
 
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true
   },
   "include": ["src/**/*"]
 }
