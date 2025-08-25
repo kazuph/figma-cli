@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { parseFigmaResponse, type SimplifiedDesign } from "./simplify-node-response.js";
 import type {
   GetImagesResponse,
@@ -193,7 +194,20 @@ function writeLogs(name: string, value: any) {
     if (!fs.existsSync(logsDir)) {
       fs.mkdirSync(logsDir);
     }
-    fs.writeFileSync(`${logsDir}/${name}`, yaml.dump(value));
+    
+    // Sanitize filename to prevent directory traversal attacks
+    const sanitizedName = path.normalize(name).replace(/^(\.\.(\/|\\|$))+/, '');
+    const logFilePath = path.join(logsDir, sanitizedName);
+    
+    // Resolve to absolute path and check it's within the logs directory
+    const resolvedPath = path.resolve(logFilePath);
+    const resolvedLogsDir = path.resolve(logsDir);
+    
+    if (!resolvedPath.startsWith(resolvedLogsDir)) {
+      throw new Error("Invalid log file path specified. Directory traversal is not allowed.");
+    }
+    
+    fs.writeFileSync(resolvedPath, yaml.dump(value));
   } catch (error) {
     console.debug("Failed to write logs:", error);
   }

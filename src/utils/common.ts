@@ -29,13 +29,24 @@ export async function downloadFigmaImage(
   imageUrl: string,
 ): Promise<string> {
   try {
+    // Sanitize fileName to prevent directory traversal attacks
+    const sanitizedFileName = path.normalize(fileName).replace(/^(\.\.(\/|\\|$))+/, '');
+    
     // Ensure local path exists
     if (!fs.existsSync(localPath)) {
       fs.mkdirSync(localPath, { recursive: true });
     }
 
-    // Build the complete file path
-    const fullPath = path.join(localPath, fileName);
+    // Build the complete file path with sanitized filename
+    const fullPath = path.join(localPath, sanitizedFileName);
+    
+    // Resolve to absolute path and check it's within the allowed directory
+    const resolvedPath = path.resolve(fullPath);
+    const resolvedLocalPath = path.resolve(localPath);
+    
+    if (!resolvedPath.startsWith(resolvedLocalPath)) {
+      throw new Error("Invalid path specified. Directory traversal is not allowed.");
+    }
 
     // Use fetch to download the image
     const response = await fetch(imageUrl, {
@@ -46,8 +57,8 @@ export async function downloadFigmaImage(
       throw new Error(`Failed to download image: ${response.statusText}`);
     }
 
-    // Create write stream
-    const writer = fs.createWriteStream(fullPath);
+    // Create write stream using the validated path
+    const writer = fs.createWriteStream(resolvedPath);
 
     // Get the response as a readable stream and pipe it to the file
     const reader = response.body?.getReader();
@@ -69,19 +80,19 @@ export async function downloadFigmaImage(
           }
         } catch (err) {
           writer.end();
-          fs.unlink(fullPath, () => {});
+          fs.unlink(resolvedPath, () => {});
           reject(err);
         }
       };
 
       // Resolve only when the stream is fully written
       writer.on('finish', () => {
-        resolve(fullPath);
+        resolve(resolvedPath);
       });
 
       writer.on("error", (err) => {
         reader.cancel();
-        fs.unlink(fullPath, () => {});
+        fs.unlink(resolvedPath, () => {});
         reject(new Error(`Failed to write image: ${err.message}`));
       });
 
