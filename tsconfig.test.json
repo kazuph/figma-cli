@@ -5,11 +5,11 @@
     "paths": {
       "~/*": ["./src/*"]
     },
-
+    
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "verbatimModuleSyntax": false,
     "allowJs": true,
@@ -29,5 +29,6 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
