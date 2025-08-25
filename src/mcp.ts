@@ -34,37 +34,14 @@ function createServer(
   { isHTTP = false, outputFormat = "yaml" }: CreateServerOptions = {},
 ) {
   const server = new McpServer(serverInfo);
-  // const figmaService = new FigmaService(figmaApiKey);
   const figmaService = new FigmaService(authOptions);
+  
   registerTools(server, figmaService, outputFormat);
   registerResources(server);
 
   Logger.isHTTP = isHTTP;
 
   return server;
-}
-
-// Detect environment - can be overridden with MCP_MODE env variable
-// Claude Code has CLAUDE_CODE_VERSION, Desktop doesn't
-// Can be forced with MCP_MODE=desktop or MCP_MODE=code
-const detectEnvironment = (): "desktop" | "code" => {
-  if (process.env.MCP_MODE === "desktop") return "desktop";
-  if (process.env.MCP_MODE === "code") return "code";
-  // Auto-detect based on environment
-  if (process.env.CLAUDE_CODE_VERSION) return "code";
-  // Check for common Claude Desktop indicators
-  if (process.env.CLAUDE_DESKTOP || process.env.ANTHROPIC_DESKTOP) return "desktop";
-  // Default to desktop mode for better compatibility
-  return "desktop";
-};
-
-const mcpEnvironment = detectEnvironment();
-const isClaudeDesktop = mcpEnvironment === "desktop";
-
-if (isClaudeDesktop) {
-  Logger.log("Running in Claude Desktop mode - resources will be returned directly in tool responses");
-} else {
-  Logger.log("Running in Claude Code mode - resources will be stored and referenced via URIs");
 }
 
 function registerTools(
@@ -75,7 +52,7 @@ function registerTools(
   // Tool to get file information
   server.tool(
     "get_figma_data",
-    "Get layout information from a Figma file - AI-optimized clean YAML output. ⚠️ WARNING: Using depth parameter results in incomplete layout data. For complete design implementation, avoid depth restrictions.",
+    "Get layout information from a Figma file - AI-optimized clean YAML output. ⚠️ WARNING: Using depth parameter results in incomplete layout data. For complete design implementation, avoid depth restrictions. 🖥️ Claude Desktop users: Add 'direct: true' to receive data directly instead of resource URIs.",
     {
       fileKey: z
         .string()
@@ -94,8 +71,15 @@ function registerTools(
         .describe(
           "OPTIONAL. Do NOT use unless explicitly requested by the user. Controls how many levels deep to traverse the node tree (Figma API parameter)",
         ),
+      direct: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "Set to true for Claude Desktop to receive data directly. Leave false for Claude Code to use @figma resource references.",
+        ),
     },
-    async ({ fileKey, nodeId, depth }) => {
+    async ({ fileKey, nodeId, depth, direct }) => {
       try {
         Logger.log(
           `Fetching ${
@@ -182,10 +166,10 @@ function registerTools(
           Logger.log(`Created new resource: figma://${resultKey}`);
         }
         
-        // For Claude Desktop: Return data directly since resources aren't accessible via @ mention
-        // For Claude Code: Store as resource and return URI for better token efficiency
-        if (isClaudeDesktop) {
-          Logger.log("Claude Desktop mode - returning data directly in response");
+        // For direct mode (Claude Desktop): Return data directly since resources aren't accessible via @ mention
+        // For resource mode (Claude Code): Store as resource and return URI for better token efficiency
+        if (direct) {
+          Logger.log("Direct mode - returning data directly in response");
           
           // Add a header comment to indicate this is Figma data
           const header = outputFormat === "yaml" 
@@ -201,7 +185,7 @@ function registerTools(
             ],
           };
         } else {
-          Logger.log("Claude Code mode - storing as resource and returning URI");
+          Logger.log("Resource mode - storing as resource and returning URI");
           return {
             content: [
               { 
@@ -348,79 +332,92 @@ function registerTools(
 }
 
 function registerResources(server: McpServer): void {
-  // Track registered resources to avoid duplicates
-  const registeredResources = new Set<string>();
-  
-  // Register each stored resource individually for Claude Desktop compatibility
-  // This approach allows resources to be discovered in Claude Desktop's UI
-  const updateResourceList = () => {
-    // Register each resource individually if not already registered
-    figmaDataStore.forEach((stored, key) => {
-      // Skip if already registered
-      if (registeredResources.has(key)) {
-        return;
+  // Register resource template for figma resources with correct API
+  const template = new ResourceTemplate("figma://{key}", {
+    list: async () => {
+      const resources = Array.from(figmaDataStore.entries()).map(([key, stored]) => {
+        // Parse data for description
+        let description = "Figma Design";
+        try {
+          const data = JSON.parse(stored.data);
+          const nodeCount = data.nodes ? Object.keys(data.nodes).length : 0;
+          const componentCount = data.components ? Object.keys(data.components).length : 0;
+          
+          const parts = [
+            `${nodeCount} nodes`,
+            componentCount > 0 ? `${componentCount} components` : null,
+            stored.metadata.depth ? `depth ${stored.metadata.depth}` : "full depth",
+            `${(stored.data.length / 1024).toFixed(1)} KB`
+          ].filter(Boolean);
+          
+          description = `${stored.metadata.fileName || 'Figma Design'} - ${parts.join(" • ")}`;
+        } catch (error) {
+          Logger.log(`Failed to parse metadata for figma://${key}: ${error}`);
+        }
+        
+        return {
+          uri: `figma://${key}`,
+          name: stored.metadata.fileName || `Figma-${key}`,
+          description,
+          mimeType: "application/json"
+        };
+      });
+      
+      return { resources };
+    },
+    complete: {
+      key: async (partial: string) => {
+        // Return available keys that match the partial input
+        return Array.from(figmaDataStore.keys()).filter(key => key.startsWith(partial));
       }
-      
+    }
+  });
+  
+  // Register the template with read callback
+  server.resource("figma", template, async (uri: URL) => {
+    // Extract key from URI (figma://key-format)
+    const uriString = uri.toString();
+    const match = uriString.match(/^figma:\/\/(.+)$/);
+    if (!match) {
+      throw new Error(`Invalid Figma resource URI: ${uriString}`);
+    }
+    
+    const key = match[1];
+    const stored = figmaDataStore.get(key);
+    
+    if (!stored) {
+      throw new Error(`Resource not found: ${uri}`);
+    }
+    
+    // Parse data to get metadata for description
+    let description = "Figma Design";
+    try {
       const data = JSON.parse(stored.data);
-      const meta = stored.metadata;
-      
-      // Create descriptive resource info
       const nodeCount = data.nodes ? Object.keys(data.nodes).length : 0;
       const componentCount = data.components ? Object.keys(data.components).length : 0;
       
-      // Build descriptive name
-      let name = meta.fileName || "Figma Design";
-      if (meta.nodeId) {
-        name += ` - Node ${meta.nodeId}`;
-      }
-      
-      // Build description with key metrics
       const parts = [
         `${nodeCount} nodes`,
         componentCount > 0 ? `${componentCount} components` : null,
-        meta.depth ? `depth ${meta.depth}` : "full depth",
+        stored.metadata.depth ? `depth ${stored.metadata.depth}` : "full depth",
         `${(stored.data.length / 1024).toFixed(1)} KB`
       ].filter(Boolean);
       
-      try {
-        // Register as a static resource
-        server.resource(
-          `figma-${key}`,
-          `figma://${key}`,
-          {
-            description: parts.join(" • "),
-            mimeType: "application/json"
-          },
-          async () => {
-            // Get the latest data in case it was updated
-            const currentData = figmaDataStore.get(key);
-            if (!currentData) {
-              throw new Error(`Resource data not found: ${key}`);
-            }
-            return {
-              contents: [{
-                uri: `figma://${key}`,
-                mimeType: "application/json",
-                text: currentData.data
-              }]
-            };
-          }
-        );
-        
-        // Mark as registered
-        registeredResources.add(key);
-        Logger.log(`Registered resource: figma://${key}`);
-      } catch (error) {
-        // Resource might already be registered, skip
-        Logger.log(`Skipping resource registration for ${key}: ${error}`);
-      }
-    });
-    
-    // Notify Claude that resources have changed
-    if (server.isConnected()) {
-      server.sendResourceListChanged();
+      description = `${stored.metadata.fileName || 'Figma Design'} - ${parts.join(" • ")}`;
+    } catch (error) {
+      Logger.log(`Failed to parse metadata for ${uriString}: ${error}`);
     }
-  };
+    
+    return {
+      contents: [{
+        uri: uriString,
+        mimeType: "application/json",
+        text: stored.data
+      }]
+    };
+  });
+  
+  Logger.log("Figma resource template registered successfully");
 }
 
 export { createServer };
