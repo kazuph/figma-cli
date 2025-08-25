@@ -1,5 +1,14 @@
 # figma-developer-mcp
 
+## 0.10.2
+
+### Patch Changes
+
+- Fix duplicate resource registration error
+- Simplify resource handling with ResourceTemplate for Claude Code
+- Claude Desktop continues to receive data directly in tool responses
+- Add proper logging for resource creation and updates
+
 ## 0.10.0
 
 ### Minor Changes

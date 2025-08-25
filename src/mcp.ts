@@ -160,6 +160,10 @@ function registerTools(
         
         // Store result with unique key
         const resultKey = `${fileKey}${nodeId ? `-${nodeId}` : ''}${depth ? `-depth${depth}` : ''}`;
+        
+        // Check if we're updating existing data or adding new
+        const isUpdate = figmaDataStore.has(resultKey);
+        
         figmaDataStore.set(resultKey, {
           data: jsonResult,
           originalFormat: outputFormat,
@@ -171,6 +175,12 @@ function registerTools(
             timestamp: Date.now()
           }
         });
+        
+        if (isUpdate) {
+          Logger.log(`Updated existing resource: figma://${resultKey}`);
+        } else {
+          Logger.log(`Created new resource: figma://${resultKey}`);
+        }
         
         // For Claude Desktop: Return data directly since resources aren't accessible via @ mention
         // For Claude Code: Store as resource and return URI for better token efficiency
@@ -338,14 +348,19 @@ function registerTools(
 }
 
 function registerResources(server: McpServer): void {
+  // Track registered resources to avoid duplicates
+  const registeredResources = new Set<string>();
+  
   // Register each stored resource individually for Claude Desktop compatibility
   // This approach allows resources to be discovered in Claude Desktop's UI
   const updateResourceList = () => {
-    // Clear existing resources (not available in SDK, we'll work around this)
-    // Instead, we'll just send a notification when resources change
-    
-    // Register each resource individually
+    // Register each resource individually if not already registered
     figmaDataStore.forEach((stored, key) => {
+      // Skip if already registered
+      if (registeredResources.has(key)) {
+        return;
+      }
+      
       const data = JSON.parse(stored.data);
       const meta = stored.metadata;
       
@@ -367,24 +382,38 @@ function registerResources(server: McpServer): void {
         `${(stored.data.length / 1024).toFixed(1)} KB`
       ].filter(Boolean);
       
-      // Register as a static resource
-      server.resource(
-        `figma-${key}`,
-        `figma://${key}`,
-        {
-          description: parts.join(" • "),
-          mimeType: "application/json"
-        },
-        async () => {
-          return {
-            contents: [{
-              uri: `figma://${key}`,
-              mimeType: "application/json",
-              text: stored.data
-            }]
-          };
-        }
-      );
+      try {
+        // Register as a static resource
+        server.resource(
+          `figma-${key}`,
+          `figma://${key}`,
+          {
+            description: parts.join(" • "),
+            mimeType: "application/json"
+          },
+          async () => {
+            // Get the latest data in case it was updated
+            const currentData = figmaDataStore.get(key);
+            if (!currentData) {
+              throw new Error(`Resource data not found: ${key}`);
+            }
+            return {
+              contents: [{
+                uri: `figma://${key}`,
+                mimeType: "application/json",
+                text: currentData.data
+              }]
+            };
+          }
+        );
+        
+        // Mark as registered
+        registeredResources.add(key);
+        Logger.log(`Registered resource: figma://${key}`);
+      } catch (error) {
+        // Resource might already be registered, skip
+        Logger.log(`Skipping resource registration for ${key}: ${error}`);
+      }
     });
     
     // Notify Claude that resources have changed
@@ -392,18 +421,6 @@ function registerResources(server: McpServer): void {
       server.sendResourceListChanged();
     }
   };
-  
-  // Hook into the figmaDataStore to update resources when data is added
-  const originalSet = figmaDataStore.set.bind(figmaDataStore);
-  (figmaDataStore as any).set = function(key: string, value: StoredFigmaData) {
-    originalSet(key, value);
-    updateResourceList();
-  };
-  
-  // Initialize resources if any exist
-  if (figmaDataStore.size > 0) {
-    updateResourceList();
-  }
 }
 
 export { createServer };
