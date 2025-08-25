@@ -1,6 +1,6 @@
 import { FigmaService } from '../services/figma.js';
 import { loadCredentials } from '../utils/credentials.js';
-import { SimplifiedNode } from '../services/simplify-node-response.js';
+import type { SimplifiedNode } from '../services/simplify-node-response.js';
 import { Logger } from '../utils/logger.js';
 import yaml from 'js-yaml';
 

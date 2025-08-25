@@ -131,12 +131,15 @@ Add to your Claude Desktop MCP configuration:
       "command": "npx",
       "args": ["-y", "@kazuph/figma", "mcp"],
       "env": {
-        "FIGMA_API_KEY": "your-figma-api-key-here"
+        "FIGMA_API_KEY": "your-figma-api-key-here",
+        "MCP_MODE": "desktop"
       }
     }
   }
 }
 ```
+
+> **Note for Claude Desktop users**: Resources are handled differently in Claude Desktop vs Claude Code. In Claude Desktop, Figma data is returned directly in tool responses for immediate use. In Claude Code, data is stored as resources that can be referenced with @figma mentions.
 
 ## Command Reference
 

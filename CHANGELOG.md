@@ -1,5 +1,16 @@
 # figma-developer-mcp
 
+## 0.10.0
+
+### Minor Changes
+
+- Improved MCP resource handling for Claude Desktop compatibility
+  - Added dual-mode operation: Claude Desktop mode returns data directly in tool responses
+  - Claude Code mode stores data as resources for efficient token usage
+  - Added MCP_MODE environment variable to force specific mode
+  - Resources are now registered individually for better Claude Desktop UI discovery
+  - Improved resource metadata with file names, node counts, and component counts
+
 ## 0.4.1
 
 ### Patch Changes

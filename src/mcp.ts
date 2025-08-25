@@ -6,7 +6,18 @@ import yaml from "js-yaml";
 import { Logger } from "./utils/logger.js";
 
 // Store for Figma data results (always stored as JSON for MCP resources)
-const figmaDataStore = new Map<string, { data: string; originalFormat: "yaml" | "json" }>();
+interface StoredFigmaData {
+  data: string;
+  originalFormat: "yaml" | "json";
+  metadata: {
+    fileKey: string;
+    nodeId?: string;
+    depth?: number;
+    fileName?: string;
+    timestamp: number;
+  };
+}
+const figmaDataStore = new Map<string, StoredFigmaData>();
 
 const serverInfo = {
   name: "Figma MCP Server",
@@ -31,6 +42,29 @@ function createServer(
   Logger.isHTTP = isHTTP;
 
   return server;
+}
+
+// Detect environment - can be overridden with MCP_MODE env variable
+// Claude Code has CLAUDE_CODE_VERSION, Desktop doesn't
+// Can be forced with MCP_MODE=desktop or MCP_MODE=code
+const detectEnvironment = (): "desktop" | "code" => {
+  if (process.env.MCP_MODE === "desktop") return "desktop";
+  if (process.env.MCP_MODE === "code") return "code";
+  // Auto-detect based on environment
+  if (process.env.CLAUDE_CODE_VERSION) return "code";
+  // Check for common Claude Desktop indicators
+  if (process.env.CLAUDE_DESKTOP || process.env.ANTHROPIC_DESKTOP) return "desktop";
+  // Default to desktop mode for better compatibility
+  return "desktop";
+};
+
+const mcpEnvironment = detectEnvironment();
+const isClaudeDesktop = mcpEnvironment === "desktop";
+
+if (isClaudeDesktop) {
+  Logger.log("Running in Claude Desktop mode - resources will be returned directly in tool responses");
+} else {
+  Logger.log("Running in Claude Code mode - resources will be stored and referenced via URIs");
 }
 
 function registerTools(
@@ -105,6 +139,22 @@ function registerTools(
 
         Logger.log(`Generating result from file`);
         
+        // Format result based on output format preference
+        let formattedResult: string;
+        if (outputFormat === "yaml") {
+          formattedResult = yaml.dump(result, {
+            indent: 2,
+            lineWidth: 120,
+            noRefs: true,
+            sortKeys: false,
+            quotingType: '"',
+            forceQuotes: false,
+            condenseFlow: true,
+          });
+        } else {
+          formattedResult = JSON.stringify(result, null, 2);
+        }
+        
         // Always store as minified JSON for MCP resources (better token efficiency)
         const jsonResult = JSON.stringify(result);
         
@@ -112,18 +162,45 @@ function registerTools(
         const resultKey = `${fileKey}${nodeId ? `-${nodeId}` : ''}${depth ? `-depth${depth}` : ''}`;
         figmaDataStore.set(resultKey, {
           data: jsonResult,
-          originalFormat: outputFormat
+          originalFormat: outputFormat,
+          metadata: {
+            fileKey,
+            nodeId,
+            depth,
+            fileName: result.file?.name,
+            timestamp: Date.now()
+          }
         });
         
-        Logger.log("Stored result as JSON resource, returning resource URI only");
-        return {
-          content: [
-            { 
-              type: "text", 
-              text: `✅ Figma data fetched successfully!\n\n📦 Resource URI: figma://${resultKey}\n📏 Size: ${(jsonResult.length / 1024).toFixed(1)} KB\n📄 Original format requested: ${outputFormat.toUpperCase()}\n📄 Resource format: JSON\n\nUse @figma:figma://${resultKey} to reference this data in Claude Code.` 
-            }
-          ],
-        };
+        // For Claude Desktop: Return data directly since resources aren't accessible via @ mention
+        // For Claude Code: Store as resource and return URI for better token efficiency
+        if (isClaudeDesktop) {
+          Logger.log("Claude Desktop mode - returning data directly in response");
+          
+          // Add a header comment to indicate this is Figma data
+          const header = outputFormat === "yaml" 
+            ? `# Figma Design: ${result.file?.name || fileKey}\n# Nodes: ${Object.keys(result.nodes || {}).length}\n# Size: ${(jsonResult.length / 1024).toFixed(1)} KB\n\n`
+            : `/* Figma Design: ${result.file?.name || fileKey}\n * Nodes: ${Object.keys(result.nodes || {}).length}\n * Size: ${(jsonResult.length / 1024).toFixed(1)} KB\n */\n\n`;
+          
+          return {
+            content: [
+              { 
+                type: "text", 
+                text: header + formattedResult
+              }
+            ],
+          };
+        } else {
+          Logger.log("Claude Code mode - storing as resource and returning URI");
+          return {
+            content: [
+              { 
+                type: "text", 
+                text: `✅ Figma data fetched successfully!\n\n📦 Resource stored: figma://${resultKey}\n📏 Size: ${(jsonResult.length / 1024).toFixed(1)} KB\n📄 Format: ${outputFormat.toUpperCase()}\n\nIn Claude Code: Use @figma to reference this resource\nIn Claude Desktop: Data returned directly in response above` 
+              }
+            ],
+          };
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : JSON.stringify(error);
         Logger.error(`Error fetching file ${fileKey}:`, message);
@@ -261,53 +338,72 @@ function registerTools(
 }
 
 function registerResources(server: McpServer): void {
-  // Create a resource template for Figma data
-  const template = new ResourceTemplate(
-    "figma://{key}",
-    {
-      list: async () => {
-        // List all stored resources
-        const resources = Array.from(figmaDataStore.keys()).map(key => {
-          const stored = figmaDataStore.get(key)!;
+  // Register each stored resource individually for Claude Desktop compatibility
+  // This approach allows resources to be discovered in Claude Desktop's UI
+  const updateResourceList = () => {
+    // Clear existing resources (not available in SDK, we'll work around this)
+    // Instead, we'll just send a notification when resources change
+    
+    // Register each resource individually
+    figmaDataStore.forEach((stored, key) => {
+      const data = JSON.parse(stored.data);
+      const meta = stored.metadata;
+      
+      // Create descriptive resource info
+      const nodeCount = data.nodes ? Object.keys(data.nodes).length : 0;
+      const componentCount = data.components ? Object.keys(data.components).length : 0;
+      
+      // Build descriptive name
+      let name = meta.fileName || "Figma Design";
+      if (meta.nodeId) {
+        name += ` - Node ${meta.nodeId}`;
+      }
+      
+      // Build description with key metrics
+      const parts = [
+        `${nodeCount} nodes`,
+        componentCount > 0 ? `${componentCount} components` : null,
+        meta.depth ? `depth ${meta.depth}` : "full depth",
+        `${(stored.data.length / 1024).toFixed(1)} KB`
+      ].filter(Boolean);
+      
+      // Register as a static resource
+      server.resource(
+        `figma-${key}`,
+        `figma://${key}`,
+        {
+          description: parts.join(" • "),
+          mimeType: "application/json"
+        },
+        async () => {
           return {
-            uri: `figma://${key}`,
-            name: `Figma: ${key}`,
-            description: `Fetched Figma data (${(stored.data.length / 1024).toFixed(1)} KB) - Originally ${stored.originalFormat.toUpperCase()}`,
-            mimeType: "application/json"
+            contents: [{
+              uri: `figma://${key}`,
+              mimeType: "application/json",
+              text: stored.data
+            }]
           };
-        });
-        return { resources };
-      }
+        }
+      );
+    });
+    
+    // Notify Claude that resources have changed
+    if (server.isConnected()) {
+      server.sendResourceListChanged();
     }
-  );
+  };
   
-  // Register the resource template
-  server.resource(
-    "figma-data",
-    template,
-    {
-      description: "Access fetched Figma design data",
-      mimeType: "text/plain"
-    },
-    async (uri, params) => {
-      // Extract the key from params
-      const key = params.key as string;
-      const stored = figmaDataStore.get(key);
-      
-      if (!stored) {
-        throw new Error(`Resource not found: figma://${key}`);
-      }
-      
-      // Always return as JSON for MCP resources
-      return {
-        contents: [{
-          uri: `figma://${key}`,
-          mimeType: "application/json",
-          text: stored.data
-        }]
-      };
-    }
-  );
+  // Hook into the figmaDataStore to update resources when data is added
+  const originalSet = figmaDataStore.set.bind(figmaDataStore);
+  (figmaDataStore as any).set = function(key: string, value: StoredFigmaData) {
+    originalSet(key, value);
+    updateResourceList();
+  };
+  
+  // Initialize resources if any exist
+  if (figmaDataStore.size > 0) {
+    updateResourceList();
+  }
 }
 
 export { createServer };
