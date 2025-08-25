@@ -84,6 +84,14 @@ export class FigmaService {
     fileKey: string,
     nodes: FetchImageFillParams[],
     localPath: string,
+    processingOptions?: {
+      mode?: "FILL" | "FIT" | "CROP" | "TILE";
+      width?: number;
+      height?: number;
+      quality?: number;
+      preserveAspectRatio?: boolean;
+      background?: string | { r: number; g: number; b: number; alpha?: number };
+    }
   ): Promise<string[]> {
     if (nodes.length === 0) return [];
 
@@ -96,7 +104,7 @@ export class FigmaService {
       if (!imageUrl) {
         return "";
       }
-      return downloadFigmaImage(fileName, localPath, imageUrl);
+      return downloadFigmaImage(fileName, localPath, imageUrl, processingOptions);
     });
     return Promise.all(promises);
   }
@@ -111,6 +119,14 @@ export class FigmaService {
       includeId: boolean;
       simplifyStroke: boolean;
     },
+    processingOptions?: {
+      mode?: "FILL" | "FIT" | "CROP" | "TILE";
+      width?: number;
+      height?: number;
+      quality?: number;
+      preserveAspectRatio?: boolean;
+      background?: string | { r: number; g: number; b: number; alpha?: number };
+    }
   ): Promise<string[]> {
     const pngIds = nodes.filter(({ fileType }) => fileType === "png").map(({ nodeId }) => nodeId);
     const pngFiles =
@@ -142,7 +158,7 @@ export class FigmaService {
       .map(({ nodeId, fileName }) => {
         const imageUrl = files[nodeId];
         if (imageUrl) {
-          return downloadFigmaImage(fileName, localPath, imageUrl);
+          return downloadFigmaImage(fileName, localPath, imageUrl, processingOptions);
         }
         return false;
       })
