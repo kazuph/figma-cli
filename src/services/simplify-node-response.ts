@@ -104,6 +104,7 @@ export interface BoundingBox {
 
 export type CSSRGBAColor = `rgba(${number}, ${number}, ${number}, ${number})`;
 export type CSSHexColor = `#${string}`;
+export type CSSGradient = `linear-gradient(${string})` | `radial-gradient(${string})` | `conic-gradient(${string})`;
 export type SimplifiedFill =
   | {
       type?: Paint["type"];
@@ -111,7 +112,37 @@ export type SimplifiedFill =
       rgba?: string;
       opacity?: number;
       imageRef?: string;
-      scaleMode?: string;
+      scaleMode?: "FILL" | "FIT" | "CROP" | "TILE" | "STRETCH";
+      // IMAGE fill properties for pattern/repeating support
+      imageTransform?: number[][]; // 2x3 transform matrix
+      scalingFactor?: number; // Scaling factor for TILE mode
+      rotation?: number; // Image rotation in degrees
+      filters?: {
+        exposure?: number;
+        contrast?: number;
+        saturation?: number;
+        temperature?: number;
+        tint?: number;
+        highlights?: number;
+        shadows?: number;
+      };
+      gifRef?: string; // Reference to animated GIF
+      // PATTERN fill properties
+      sourceNodeId?: string; // Node ID for pattern source
+      tileType?: "RECTANGULAR" | "HORIZONTAL_HEXAGONAL" | "VERTICAL_HEXAGONAL";
+      spacing?: { x: number; y: number }; // Pattern spacing
+      horizontalAlignment?: "START" | "CENTER" | "END";
+      verticalAlignment?: "START" | "CENTER" | "END";
+      // New image processing options for enhanced image handling
+      imageProcessingOptions?: {
+        width?: number;
+        height?: number;
+        quality?: number;
+        preserveAspectRatio?: boolean;
+        background?: string | { r: number; g: number; b: number; alpha?: number };
+      };
+      // Note: gradientHandlePositions and gradientStops are now deprecated
+      // in favor of direct CSS gradient strings returned by parsePaint
       gradientHandlePositions?: Vector[];
       gradientStops?: {
         position: number;
@@ -119,7 +150,8 @@ export type SimplifiedFill =
       }[];
     }
   | CSSRGBAColor
-  | CSSHexColor;
+  | CSSHexColor
+  | CSSGradient;
 
 export interface ColorValue {
   hex: string;
@@ -246,7 +278,7 @@ function parseNode(
 
   // fills & strokes
   if (hasValue("fills", n) && Array.isArray(n.fills) && n.fills.length) {
-    const fills = n.fills.map(parsePaint);
+    const fills = n.fills.map(paint => parsePaint(paint));
     simplified.fills = fills;
   }
 
