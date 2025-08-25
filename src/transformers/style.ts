@@ -11,7 +11,7 @@ export type SimplifiedStroke = {
 export function buildSimplifiedStrokes(n: FigmaDocumentNode): SimplifiedStroke {
   let strokes: SimplifiedStroke = { colors: [] };
   if (hasValue("strokes", n) && Array.isArray(n.strokes) && n.strokes.length) {
-    strokes.colors = n.strokes.filter(isVisible).map(parsePaint);
+    strokes.colors = n.strokes.filter(isVisible).map(stroke => parsePaint(stroke));
   }
 
   if (hasValue("strokeWeight", n) && typeof n.strokeWeight === "number" && n.strokeWeight > 0) {

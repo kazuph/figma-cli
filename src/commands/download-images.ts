@@ -15,6 +15,16 @@ export interface DownloadImagesOptions {
     includeId?: boolean;
     simplifyStroke?: boolean;
   };
+  // New image processing options
+  imageProcessing?: {
+    enabled?: boolean;
+    mode?: "FILL" | "FIT" | "CROP" | "TILE";
+    width?: number;
+    height?: number;
+    quality?: number;
+    preserveAspectRatio?: boolean;
+    background?: string | { r: number; g: number; b: number; alpha?: number };
+  };
   figmaApiKey?: string;
   figmaOauthToken?: string;
 }
@@ -57,7 +67,17 @@ export async function downloadImagesCommand(options: DownloadImagesOptions): Pro
       fileName: string;
     }[];
 
-    const fillDownloads = figmaService.getImageFills(options.fileKey, imageFills, options.localPath);
+    // Extract image processing options
+    const imageProcessingOptions = options.imageProcessing?.enabled ? {
+      mode: options.imageProcessing.mode,
+      width: options.imageProcessing.width,
+      height: options.imageProcessing.height,
+      quality: options.imageProcessing.quality,
+      preserveAspectRatio: options.imageProcessing.preserveAspectRatio,
+      background: options.imageProcessing.background,
+    } : undefined;
+
+    const fillDownloads = figmaService.getImageFills(options.fileKey, imageFills, options.localPath, imageProcessingOptions);
     
     const renderRequests = options.nodes
       .filter(({ imageRef }) => !imageRef)
@@ -95,6 +115,7 @@ export async function downloadImagesCommand(options: DownloadImagesOptions): Pro
       options.localPath,
       options.pngScale || 2,
       svgOptions,
+      imageProcessingOptions,
     );
 
     const downloads = await Promise.all([fillDownloads, renderDownloads]).then(([f, r]) => [

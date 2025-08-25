@@ -11,6 +11,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
+    "verbatimModuleSyntax": false,
     "allowJs": true,
     "checkJs": true,
 
@@ -26,9 +27,8 @@
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": false
+    "isolatedModules": true
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules", "figma-security-fix"]
+  "exclude": ["node_modules", "dist"]
 }
