@@ -73,6 +73,28 @@ figma get-data <fileKey> <nodeId> --depth 2          # Limit to 2 levels deep
 figma get-data <fileKey> <nodeId> --format json
 ```
 
+### MCP Tool Parameters
+
+When using the Figma MCP server tools, you can use these parameters:
+
+```typescript
+// For Claude Code users (default) - returns resource URI
+{
+  "fileKey": "your-figma-file-key",
+  "nodeId": "optional-node-id", 
+  "depth": 2
+}
+
+// For Claude Desktop users - returns data directly
+{
+  "fileKey": "your-figma-file-key", 
+  "nodeId": "optional-node-id",
+  "direct": true  // Add this for Claude Desktop
+}
+```
+
+**📝 Note**: Claude Desktop users should add `"direct": true` to receive data directly instead of resource URIs, since Claude Desktop cannot access `@figma` resource references.
+
 ### Pipeline Processing with yq
 ```bash
 # Get screen name
@@ -131,15 +153,36 @@ Add to your Claude Desktop MCP configuration:
       "command": "npx",
       "args": ["-y", "@kazuph/figma", "mcp"],
       "env": {
-        "FIGMA_API_KEY": "your-figma-api-key-here",
-        "MCP_MODE": "desktop"
+        "FIGMA_API_KEY": "your-figma-api-key-here"
       }
     }
   }
 }
 ```
 
-> **Note for Claude Desktop users**: Resources are handled differently in Claude Desktop vs Claude Code. In Claude Desktop, Figma data is returned directly in tool responses for immediate use. In Claude Code, data is stored as resources that can be referenced with @figma mentions.
+> **Important**: Client detection is now based on MCP specification's `clientInfo` rather than environment variables. Claude Desktop clients receive data directly in tool responses, while other clients receive resource URIs. The server automatically detects the client type during the MCP initialization handshake.
+
+#### Increasing MCP Response Limits
+
+For large Figma files, you may encounter MCP response size limits. To increase the response size limits, add these environment variables to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "figma": {
+      "command": "npx",
+      "args": ["-y", "@kazuph/figma", "mcp"],
+      "env": {
+        "FIGMA_API_KEY": "your-figma-api-key-here",
+        "MAX_MCP_OUTPUT_TOKENS": "80000",
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000"
+      }
+    }
+  }
+}
+```
+
+These environment variables increase the maximum response size from the default limits, allowing larger Figma file data to be processed without truncation.
 
 ## Command Reference
 
