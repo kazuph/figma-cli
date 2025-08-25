@@ -133,25 +133,25 @@ export async function getServerConfig(isStdioMode: boolean): Promise<ServerConfi
     process.exit(1);
   }
 
-  // Log configuration sources
+  // Log configuration sources (only in HTTP mode, to stderr)
   if (!isStdioMode) {
-    console.log("\nConfiguration:");
+    console.error("\nConfiguration:");
     if (auth.useOAuth) {
-      console.log(
+      console.error(
         `- FIGMA_OAUTH_TOKEN: ${maskApiKey(auth.figmaOAuthToken)} (source: ${config.configSources.figmaOAuthToken})`,
       );
-      console.log("- Authentication Method: OAuth Bearer Token");
+      console.error("- Authentication Method: OAuth Bearer Token");
     } else {
-      console.log(
+      console.error(
         `- FIGMA_API_KEY: ${maskApiKey(auth.figmaApiKey)} (source: ${config.configSources.figmaApiKey})`,
       );
-      console.log("- Authentication Method: Personal Access Token (X-Figma-Token)");
+      console.error("- Authentication Method: Personal Access Token (X-Figma-Token)");
     }
-    console.log(`- PORT: ${config.port} (source: ${config.configSources.port})`);
-    console.log(
+    console.error(`- PORT: ${config.port} (source: ${config.configSources.port})`);
+    console.error(
       `- OUTPUT_FORMAT: ${config.outputFormat} (source: ${config.configSources.outputFormat})`,
     );
-    console.log(); // Empty line for better readability
+    console.error(""); // Empty line for better readability
   }
 
   return {

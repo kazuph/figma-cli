@@ -1,10 +1,12 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { FigmaService, type FigmaAuthOptions } from "./services/figma.js";
 import type { SimplifiedDesign, SimplifiedNode } from "./services/simplify-node-response.js";
 import yaml from "js-yaml";
 import { Logger } from "./utils/logger.js";
 
+// Store for Figma data results (always stored as JSON for MCP resources)
+const figmaDataStore = new Map<string, { data: string; originalFormat: "yaml" | "json" }>();
 
 const serverInfo = {
   name: "Figma MCP Server",
@@ -24,6 +26,7 @@ function createServer(
   // const figmaService = new FigmaService(figmaApiKey);
   const figmaService = new FigmaService(authOptions);
   registerTools(server, figmaService, outputFormat);
+  registerResources(server);
 
   Logger.isHTTP = isHTTP;
 
@@ -100,13 +103,26 @@ function registerTools(
           result.componentSets = componentSets;
         }
 
-        Logger.log(`Generating ${outputFormat.toUpperCase()} result from file`);
-        const formattedResult =
-          outputFormat === "json" ? JSON.stringify(result, null, 2) : yaml.dump(result);
-
-        Logger.log("Sending result to client");
+        Logger.log(`Generating result from file`);
+        
+        // Always store as minified JSON for MCP resources (better token efficiency)
+        const jsonResult = JSON.stringify(result);
+        
+        // Store result with unique key
+        const resultKey = `${fileKey}${nodeId ? `-${nodeId}` : ''}${depth ? `-depth${depth}` : ''}`;
+        figmaDataStore.set(resultKey, {
+          data: jsonResult,
+          originalFormat: outputFormat
+        });
+        
+        Logger.log("Stored result as JSON resource, returning resource URI only");
         return {
-          content: [{ type: "text", text: formattedResult }],
+          content: [
+            { 
+              type: "text", 
+              text: `✅ Figma data fetched successfully!\n\n📦 Resource URI: figma://${resultKey}\n📏 Size: ${(jsonResult.length / 1024).toFixed(1)} KB\n📄 Original format requested: ${outputFormat.toUpperCase()}\n📄 Resource format: JSON\n\nUse @figma:figma://${resultKey} to reference this data in Claude Code.` 
+            }
+          ],
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : JSON.stringify(error);
@@ -241,6 +257,56 @@ function registerTools(
         };
       }
     },
+  );
+}
+
+function registerResources(server: McpServer): void {
+  // Create a resource template for Figma data
+  const template = new ResourceTemplate(
+    "figma://{key}",
+    {
+      list: async () => {
+        // List all stored resources
+        const resources = Array.from(figmaDataStore.keys()).map(key => {
+          const stored = figmaDataStore.get(key)!;
+          return {
+            uri: `figma://${key}`,
+            name: `Figma: ${key}`,
+            description: `Fetched Figma data (${(stored.data.length / 1024).toFixed(1)} KB) - Originally ${stored.originalFormat.toUpperCase()}`,
+            mimeType: "application/json"
+          };
+        });
+        return { resources };
+      }
+    }
+  );
+  
+  // Register the resource template
+  server.resource(
+    "figma-data",
+    template,
+    {
+      description: "Access fetched Figma design data",
+      mimeType: "text/plain"
+    },
+    async (uri, params) => {
+      // Extract the key from params
+      const key = params.key as string;
+      const stored = figmaDataStore.get(key);
+      
+      if (!stored) {
+        throw new Error(`Resource not found: figma://${key}`);
+      }
+      
+      // Always return as JSON for MCP resources
+      return {
+        contents: [{
+          uri: `figma://${key}`,
+          mimeType: "application/json",
+          text: stored.data
+        }]
+      };
+    }
   );
 }
 

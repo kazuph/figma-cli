@@ -17,7 +17,10 @@ config({ path: resolve(process.cwd(), ".env") });
 
 export async function startServer(): Promise<void> {
   // Check if we're running in stdio mode (e.g., via CLI)
-  const isStdioMode = process.env.NODE_ENV === "cli" || process.argv.includes("--stdio");
+  // MCP command always runs in stdio mode
+  const isStdioMode = process.env.NODE_ENV === "cli" || 
+                      process.argv.includes("--stdio") || 
+                      process.argv.includes("mcp");
 
   const config = await getServerConfig(isStdioMode);
 
@@ -30,7 +33,7 @@ export async function startServer(): Promise<void> {
     const transport = new StdioServerTransport();
     await server.connect(transport);
   } else {
-    console.log(`Initializing Figma MCP Server in HTTP mode on port ${config.port}...`);
+    console.error(`Initializing Figma MCP Server in HTTP mode on port ${config.port}...`);
     await startHttpServer(config.port, server);
   }
 }
@@ -49,6 +52,17 @@ async function main(): Promise<void> {
         });
     })
     .command('server', 'Start MCP server', (yargs) => {
+      return yargs
+        .option('stdio', {
+          type: 'boolean',
+          description: 'Run in stdio mode for MCP'
+        })
+        .option('port', {
+          type: 'number',
+          description: 'Port for HTTP server mode'
+        });
+    })
+    .command('mcp', 'Start MCP server (alias for server)', (yargs) => {
       return yargs
         .option('stdio', {
           type: 'boolean',
@@ -174,7 +188,7 @@ FEATURES:
   }
 
   // Handle server command
-  if (command === 'server') {
+  if (command === 'server' || command === 'mcp') {
     await startServer();
     return;
   }
